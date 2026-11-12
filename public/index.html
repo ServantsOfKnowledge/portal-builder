@@ -136,6 +136,7 @@
       <button type="button" class="b" id="dupBtn">Duplicate as new</button>
       <button type="button" class="b" id="delBtn">Remove</button>
     </div>
+    <p class="preview-link" id="liveLink" hidden></p>
     <p class="preview-link" id="previewLink" hidden></p>
     <pre id="log">—</pre>
   </form>
@@ -315,7 +316,15 @@ $('#delBtn').onclick = () => busy(async () => {
 });
 
 let DESIGN = 0; api('GET', 'meta').then((m) => { DESIGN = m.designVersion; showModernise(); });
+// Link to the portal as it is live right now (the existing site before an update, the new one after a push).
+function showLive() {
+  const f = readForm(), a = f.sub || f.slug, url = a && f.domain ? `https://${a}.${f.domain}/` : '';
+  $('#liveLink').hidden = !(url && projects[cur && cur.slug]);
+  $('#liveLink').innerHTML = url ? `Live portal: <a href="${url}" target="_blank" rel="noopener">${url}</a> ↗` : '';
+}
+for (const n of ['slug', 'sub', 'domain']) form[n].addEventListener('input', () => cur && showLive());
 const showModernise = () => {
+  if (cur) showLive();
   const p = cur && projects[cur.slug], old = p && p.imported && (p.designVersion || 1) < DESIGN;
   $('#modBtn').hidden = !old;
   if (old) $('#modBtn').textContent = `Update design v${p.designVersion || 1} → v${DESIGN} & push`;
