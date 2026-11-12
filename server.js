@@ -46,6 +46,8 @@ async function iaFetch(q) {
   }
 }
 
+// IA packs subjects as 'a; b; c'. Portals filter on comma-separated tags, so split on ; and , and rejoin with commas.
+const normTags = (v) => [...new Set(arr(v).flatMap((s) => String(s).split(/[;,]/)).map((t) => t.trim()).filter(Boolean))].join(',');
 function toBook(d, info) {
   const author = arr(d.creator).join(', ');
   return {
@@ -54,7 +56,7 @@ function toBook(d, info) {
     author,
     publisher: arr(d.publisher).join(', '),
     info: info || strip(arr(d.description).join(' ')),
-    tags: arr(d.subject).join(','),
+    tags: normTags(d.subject),
     level: Number(d.year) || (d.date ? Number(d.date.slice(0, 4)) : '') || '',
     authorUrl: author ? `https://archive.org/search?query=creator%3A%22${encodeURIComponent(author).replace(/%20/g, '+')}%22` : '',
     url: `https://archive.org/details/${d.identifier}`,
@@ -71,7 +73,7 @@ function merge(existing, fresh) {
   const byId = new Map(fresh.map((b) => [b.identifier, b]));
   const have = new Set(existing.map((b) => b.identifier));
   const added = fresh.filter((b) => !have.has(b.identifier));
-  const kept = existing.map((b) => ({ ...byId.get(b.identifier), ...b }));
+  const kept = existing.map((b) => ({ ...byId.get(b.identifier), ...b, tags: normTags(b.tags) }));
   return { books: [...kept, ...added].sort((a, b) => a.identifier.localeCompare(b.identifier)), added: added.length };
 }
 
@@ -116,8 +118,9 @@ function sortBooks(books) {
 
 const qOf = (b) => [b.title, b.author, b.publisher, b.tags, b.level, volOf(b), issOf(b), b.identifier].join(' ').normalize('NFC').toLowerCase();
 // Bump when the portal template gains something worth rolling out to existing portals.
-// 1 = the original design (carries no marker), 2 = centred white design, SOK credit, paged loading, search index.
-const DESIGN_VERSION = 2;
+// 1 = the original design (carries no marker), 2 = centred white design, SOK credit, paged loading, search index,
+// 3 = one flat list (no per-year sections), comma-separated subject tags.
+const DESIGN_VERSION = 3;
 const PAGE = 30; // cards per page; later pages load as the reader scrolls
 function cardHtml(b, h, ui, read) {
   const vol = volOf(b), iss = issOf(b), id = esc(b.identifier);
@@ -134,21 +137,17 @@ ${author ? `<p class="meta">${author}</p>` : ''}${facts ? `<p class="meta">${fac
 
 // Whole list is rendered at build time: crawlers and no-JS readers get real content; JS only filters it.
 function renderList(books, ui, read) {
-  let out = '', y, v;
+  let out = '', v;
   const closeVol = () => { if (v !== undefined) out += '</ul></div>'; v = undefined; };
   for (const b of sortBooks(books)) {
-    const yr = yearOf(b), vol = volOf(b);
-    if (yr !== y) {
-      closeVol(); if (y !== undefined) out += '</section>';
-      out += `<section class="year" data-year="${esc(yr || 'unknown')}"><h2>${esc(yr || ui.UNKNOWN)}</h2>`; y = yr;
-    }
+    const vol = volOf(b);
     if (vol !== v) {
       closeVol();
-      out += `<div class="vol" data-vol="${esc(vol)}">${vol ? `<h3>${ui.VOL} ${esc(vol)}</h3>` : ''}<ul class="cards">`; v = vol;
+      out += `<div class="vol" data-vol="${esc(vol)}">${vol ? `<h2>${ui.VOL} ${esc(vol)}</h2>` : ''}<ul class="cards">`; v = vol;
     }
-    out += cardHtml(b, vol ? 'h4' : 'h3', ui, read);
+    out += cardHtml(b, vol ? 'h3' : 'h2', ui, read);
   }
-  closeVol(); if (y !== undefined) out += '</section>';
+  closeVol();
   return out;
 }
 
@@ -299,7 +298,7 @@ const slugOfRepo = (n) => n.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^
 // Turn an old portal's files into a project config (best effort; everything stays editable).
 function fromOldSite(owner, repo, f) {
   const j = JSON.parse(f.issues);
-  const books = (Array.isArray(j) ? j : j.books || []).filter((b) => b && b.identifier);
+  const books = (Array.isArray(j) ? j : j.books || []).filter((b) => b && b.identifier).map((b) => ({ ...b, tags: normTags(b.tags) }));
   const m = (re) => (re.exec(f.html || '') || [])[1] || '';
   const host = (f.cname || '').trim().toLowerCase(), [sub, ...rest] = host.split('.');
   const lang = m(/<html[^>]*\blang=["']([\w-]+)/i) || 'kn';

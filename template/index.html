@@ -72,14 +72,10 @@ __VIEWER__
   // Pages 1.. are fragments: merge them under the year/volume heading already on screen.
   function attach(html) {
     var box = document.createElement('div'); box.innerHTML = html;
-    $$('section.year', box).forEach(function (sec) {
-      var ys = $$('main section.year'), last = ys[ys.length - 1];
-      if (!last || last.dataset.year !== sec.dataset.year) return (more || $('#none')).before(sec);
-      $$('.vol', sec).forEach(function (v) {
-        var vs = $$('.vol', last), lv = vs[vs.length - 1];
-        if (lv && lv.dataset.vol === v.dataset.vol) $$('li', v).forEach(function (li) { lv.querySelector('ul').append(li); });
-        else last.append(v);
-      });
+    $$('.vol', box).forEach(function (v) {
+      var vs = $$('main .vol'), lv = vs[vs.length - 1];
+      if (lv && lv.dataset.vol === v.dataset.vol) $$('li', v).forEach(function (li) { lv.querySelector('ul').append(li); });
+      else (more || $('#none')).before(v);
     });
   }
   function load(n) {
@@ -114,9 +110,7 @@ __VIEWER__
     });
   }
   function groups() {
-    ['.vol', '.year'].forEach(function (sel) {
-      $$(sel).forEach(function (g) { g.hidden = !g.querySelector('.card:not([hidden])'); });
-    });
+    $$('.vol').forEach(function (g) { g.hidden = !g.querySelector('.card:not([hidden])'); });
   }
   q.addEventListener('input', apply);
   pills.forEach(function (p) {

@@ -68,4 +68,6 @@ assert(!authorized(basic('admin', 'x'), 'admin', 'p:w') && !authorized(basic('bo
   assert(p.slug === 'janapada-vichara' && p.sub === 'jv' && p.domain === 'sanchaya.net' && p.title === 'T' && p.description === 'D' && p.orgName === 'Pub' && p.openMode === 'frame' && p.gaId === 'G-ABCDEF123' && p.books.length === 1);
 }
 assert(html.includes('<meta name="portal-design" content="' + require('./server.js').DESIGN_VERSION + '">'));
+assert(toBook({ identifier: 'q', subject: ['a; b ;c', 'b', 'd,e'] }).tags === 'a,b,c,d,e', 'subjects split into comma tags');
+assert(!html.includes('class="year"'), 'one flat list, no per-year sections');
 console.log('ok');
