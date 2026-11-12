@@ -66,6 +66,7 @@ __VIEWER__
   var pages = more ? +more.dataset.pages : 1, next = 1, total = parseInt($('#count').textContent, 10) || 0;
   var norm = function (s) { return s.normalize('NFC').toLowerCase(); };
   var cards = function () { return $$('.card'); };
+  var idOf = function (c) { return c.dataset.id || c.querySelector('a.t').dataset.id; };
   var loaded = { 0: 1 }, pending = {}, index = null, token = 0;
 
   // Pages 1.. are fragments: merge them under the year/volume heading already on screen.
@@ -98,13 +99,16 @@ __VIEWER__
       groups(); $('#count').textContent = total + ' / ' + total + ' ' + T.items; $('#none').hidden = true; watch();
       return;
     }
-    getIndex().then(function (idx) {
+    getIndex().catch(function () {
+      // search.json missing (portal built by an older builder): filter what is on the page by year/text.
+      return cards().map(function (c) { return [idOf(c), c.dataset.year, c.dataset.q || c.textContent.normalize('NFC').toLowerCase(), 0]; });
+    }).then(function (idx) {
       var hit = idx.filter(function (r) { return (year === 'any' || r[1] === year) && terms.every(function (t) { return r[2].indexOf(t) > -1; }); });
       var need = {}; hit.forEach(function (r) { need[r[3]] = 1; });
       return Promise.all(Object.keys(need).map(load)).then(function () {
         if (me !== token) return;
         var ids = {}; hit.forEach(function (r) { ids[r[0]] = 1; });
-        cards().forEach(function (c) { c.hidden = !ids[c.dataset.id]; });
+        cards().forEach(function (c) { c.hidden = !ids[idOf(c)]; });
         groups(); $('#count').textContent = hit.length + ' / ' + total + ' ' + T.items; $('#none').hidden = hit.length > 0;
       });
     });
