@@ -1,0 +1,21 @@
+<style>
+#viewer{position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(0,0,0,.85);z-index:2000;display:none;flex-direction:column}
+#viewer.on{display:flex}
+#viewer .bar{padding:8px 14px;text-align:right;background:#222}
+#viewer .bar a,#viewer .bar button{color:#fff;margin-left:18px;background:none;border:0;font:14px sans-serif;cursor:pointer;text-decoration:none}
+#viewer iframe{flex:1;border:0;background:#fff}
+</style>
+<div id="viewer"><div class="bar"><a id="vtab" target="_blank" rel="noopener">Open in new tab &#8599;</a><button id="vclose" type="button">&#10005; Close</button></div><iframe id="vframe" allowfullscreen></iframe></div>
+<script>
+(function () {
+  function close() { $('#viewer').removeClass('on'); $('#vframe').attr('src', 'about:blank'); }
+  $(document).on('click', 'a.book-link', function (e) {
+    e.preventDefault();
+    $('#vframe').attr('src', 'https://archive.org/embed/' + $(this).data('id'));
+    $('#vtab').attr('href', this.href);
+    $('#viewer').addClass('on');
+  });
+  $('#vclose').on('click', close);
+  $(document).on('keydown', function (e) { if (e.key === 'Escape') close(); });
+})();
+</script>

@@ -73,19 +73,7 @@
     =========================== -->
     <div class="container">
         <div class="row">
-            <div class="pythonbooks span12">
-                <a href="#" id="seeAlsoToggle">See also &#9654;</a>
-                <div class="partner-logos" style="display: none;">
-                    <a href="https://sanchaya.org" target="_blank" title="ಸಂಚಯ">
-                        <img src="https://www.google.com/s2/favicons?sz=128&domain=sanchaya.org" alt="ಸಂಚಯ">
-                        <span>ಸಂಚಯ</span>
-                    </a>
-                    <a href="https://sanchifoundation.org" target="_blank" title="ಸಂಚಿ ಫೌಂಡೇಶನ್">
-                        <img src="https://sanchifoundation.org/storage/2021/03/sanchi-logo-transparent.png" alt="ಸಂಚಿ ಫೌಂಡೇಶನ್">
-                        <span>ಸಂಚಿ ಫೌಂಡೇಶನ್</span>
-                    </a>
-                </div>
-            </div>
+            __PARTNERS__
             <div class="span12 row-fluid">
                 <p class="span1">Filter by :</p>
                 <ul id="filterBy">
@@ -106,7 +94,7 @@
         <p>Except where otherwise noted, content on this site
           is licensed under a Creative Commons Attribution 4.0 International License.
           Each issue has its own copyright/license. Please read the metadata on the issue page.</p>
-        <p class="collaboration">This portal is built in collaboration with Servants of Knowledge and <a href="https://sanchaya.org" target="_blank">Sanchaya</a>.</p>
+        <p class="collaboration">__CREDIT__</p>
     </div>
 
     <script src="./js/jquery.min.js"></script>
@@ -206,7 +194,7 @@
     <script id="booktpl" type="text/template">
         {{#books}}
          <div class="span4 booksection {{#level}}{{level}}{{/level}}{{^level}}unknown{{/level}}">
-          <a class="book-link" href="{{url}}" target="_blank" rel="noopener noreferrer">
+          <a class="book-link" data-id="{{identifier}}" href="{{url}}" target="_blank" rel="noopener noreferrer">
            <div class="view"> __READ__ </div>
 
            <div title="{{ title }}" id="cover" style="background:black url('{{cover}}') no-repeat center;-webkit-background-size:cover;-moz-background-size:cover;background-size:cover;">
@@ -220,6 +208,7 @@
         {{/books}}
     </script>
 
+    __FRAME__
     __GA__
 </body>
 </html>
