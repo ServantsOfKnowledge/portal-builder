@@ -75,4 +75,5 @@ assert(!html.includes('class="year"'), 'one flat list, no per-year sections');
   const r = refreshBooks([{ identifier: 'a', title: 'old', author: 'Old', level: 'ಮಾಸಿಕ', publisher: 'P' }, { identifier: 'z', title: 'keep' }], new Map([['a', toBook({ identifier: 'a', title: 'New', year: 1999 })]]));
   assert(r.n === 1 && r.books[0].title === 'New' && r.books[0].level === 1999 && r.books[0].author === 'Old' && r.books[0].publisher === 'P' && r.books[1].title === 'keep');
 }
+assert(/class="note"[^>]*>desc one/.test(require('./server.js').renderList([{ identifier: 'n1', title: 'T', note: 'desc one' }], { VOL: 'V', ISSUE: 'I', PAGES: 'p', DOWNLOAD: 'd', LICENSE: 'l', UNKNOWN: '?' }, 'Read')), 'item description shown as a note');
 console.log('ok');

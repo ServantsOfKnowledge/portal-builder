@@ -56,6 +56,7 @@ function toBook(d, info) {
     author,
     publisher: arr(d.publisher).join(', '),
     info: info || strip(arr(d.description).join(' ')),
+    note: strip(arr(d.description).join(' ')).slice(0, 1200), // the item's own IA description, shown on its card
     tags: normTags(d.subject),
     level: Number(d.year) || (d.date ? Number(d.date.slice(0, 4)) : '') || '',
     authorUrl: author ? `https://archive.org/search?query=creator%3A%22${encodeURIComponent(author).replace(/%20/g, '+')}%22` : '',
@@ -69,7 +70,7 @@ function toBook(d, info) {
 }
 
 // Refresh: archive.org wins, but only for fields it actually has (publication year, title, author, ...).
-const REFRESH = ['title', 'author', 'publisher', 'tags', 'level', 'authorUrl', 'pages', 'license', 'volume', 'issue'];
+const REFRESH = ['note', 'title', 'author', 'publisher', 'tags', 'level', 'authorUrl', 'pages', 'license', 'volume', 'issue'];
 function refreshBooks(books, fresh) {
   let n = 0;
   const out = books.map((b) => {
@@ -115,10 +116,10 @@ function validate(p) {
 const safeUrl = (u) => (/^https?:\/\//.test(u || '') ? esc(u) : '');
 
 const UI = {
-  en: { SEARCH: 'Search title, author, year…', SEARCHLABEL: 'Search', ALL: 'All', RANDOM: 'Random issue', SKIP: 'Skip to the list',
+  en: { SEARCH: 'Search title, author, year…', SEARCHLABEL: 'Search', ALL: 'All', TOPICS: 'Topics', ALLTOPICS: 'All topics', RANDOM: 'Random issue', SKIP: 'Skip to the list',
     ABOUT: 'About this collection', NONE: 'Nothing matches your search.', PREV: 'Previous', NEXT: 'Next', CLOSE: 'Close',
     NEWTAB: 'Open in new tab', ITEMS: 'items', PAGES: 'pages', DOWNLOAD: 'Download', VOL: 'Vol.', ISSUE: 'No.', UNKNOWN: 'Year unknown', LICENSE: 'Licence' },
-  kn: { SEARCH: 'ಶೀರ್ಷಿಕೆ, ಲೇಖಕ, ವರ್ಷ ಹುಡುಕಿ…', SEARCHLABEL: 'ಹುಡುಕಿ', ALL: 'ಎಲ್ಲಾ', RANDOM: 'ಯಾದೃಚ್ಛಿಕ ಸಂಚಿಕೆ', SKIP: 'ಪಟ್ಟಿಗೆ ಹೋಗಿ',
+  kn: { SEARCH: 'ಶೀರ್ಷಿಕೆ, ಲೇಖಕ, ವರ್ಷ ಹುಡುಕಿ…', SEARCHLABEL: 'ಹುಡುಕಿ', ALL: 'ಎಲ್ಲಾ', TOPICS: 'ವಿಷಯಗಳು', ALLTOPICS: 'ಎಲ್ಲಾ ವಿಷಯಗಳು', RANDOM: 'ಯಾದೃಚ್ಛಿಕ ಸಂಚಿಕೆ', SKIP: 'ಪಟ್ಟಿಗೆ ಹೋಗಿ',
     ABOUT: 'ಈ ಸಂಗ್ರಹದ ಬಗ್ಗೆ', NONE: 'ಹುಡುಕಾಟಕ್ಕೆ ಹೊಂದುವ ಸಂಚಿಕೆಗಳಿಲ್ಲ.', PREV: 'ಹಿಂದಿನದು', NEXT: 'ಮುಂದಿನದು', CLOSE: 'ಮುಚ್ಚಿ',
     NEWTAB: 'ಹೊಸ ಟ್ಯಾಬ್‌ನಲ್ಲಿ ತೆರೆಯಿರಿ', ITEMS: 'ಸಂಚಿಕೆಗಳು', PAGES: 'ಪುಟಗಳು', DOWNLOAD: 'ಡೌನ್‌ಲೋಡ್', VOL: 'ಸಂಪುಟ', ISSUE: 'ಸಂಚಿಕೆ', UNKNOWN: 'ವರ್ಷ ತಿಳಿದಿಲ್ಲ', LICENSE: 'ಪರವಾನಗಿ' },
 };
@@ -142,8 +143,9 @@ function sortBooks(books) {
 const qOf = (b) => [b.title, b.author, b.publisher, b.tags, b.level, volOf(b), issOf(b), b.identifier].join(' ').normalize('NFC').toLowerCase();
 // Bump when the portal template gains something worth rolling out to existing portals.
 // 1 = the original design (carries no marker), 2 = centred white design, SOK credit, paged loading, search index,
-// 3 = one flat list (no per-year sections), comma-separated subject tags, 4 = logo left with the title centred.
-const DESIGN_VERSION = 4;
+// 3 = one flat list (no per-year sections), comma-separated subject tags, 4 = logo left with the title centred,
+// 5 = subject topic filters, each item's own IA description on its card.
+const DESIGN_VERSION = 5;
 const PAGE = 30; // cards per page; later pages load as the reader scrolls
 function cardHtml(b, h, ui, read) {
   const vol = volOf(b), iss = issOf(b), id = esc(b.identifier);
@@ -153,7 +155,7 @@ function cardHtml(b, h, ui, read) {
   return `<li class="card" data-id="${id}" data-year="${esc(yearOf(b) || 'unknown')}">
 <a class="cover open" data-id="${id}" data-title="${esc(b.title)}" href="${esc(b.url)}" target="_blank" rel="noopener" tabindex="-1" aria-hidden="true"><img src="${esc(b.cover)}" alt="" loading="lazy" decoding="async" width="300" height="400"></a>
 <${h}>${open('t', esc(b.title))}</${h}>
-${author ? `<p class="meta">${author}</p>` : ''}${facts ? `<p class="meta">${facts}</p>` : ''}
+${author ? `<p class="meta">${author}</p>` : ''}${facts ? `<p class="meta">${facts}</p>` : ''}${b.note ? `<p class="note" tabindex="0" role="button" aria-expanded="false">${esc(b.note)}</p>` : ''}
 <p class="links">${open('read', esc(read))}<a href="https://archive.org/download/${id}" target="_blank" rel="noopener">${ui.DOWNLOAD}</a>${safeUrl(b.license) ? `<a href="${safeUrl(b.license)}" target="_blank" rel="noopener">${esc(licenseLabel(b.license, ui.LICENSE))}</a>` : ''}</p>
 </li>`;
 }
@@ -172,6 +174,17 @@ function renderList(books, ui, read) {
   }
   closeVol();
   return out;
+}
+
+// Subjects as independent filters: only ones that actually split the list (2+ items, not every item), most common first.
+const tagsOf = (b) => normTags(b.tags).split(',').filter(Boolean);
+function topicsHtml(books, ui) {
+  const n = new Map();
+  for (const b of books) for (const t of tagsOf(b)) n.set(t, (n.get(t) || 0) + 1);
+  const top = [...n].filter(([, c]) => c >= 2 && c < books.length).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 24);
+  if (!top.length) return '';
+  const pill = (val, label, on) => `<button type="button" class="pill" data-topic="${esc(val)}" aria-pressed="${on}">${esc(label)}</button>`;
+  return `<span class="sr">${esc(ui.TOPICS)}</span>` + pill('any', ui.ALLTOPICS, true) + top.map(([t]) => pill(t, t, false)).join('');
 }
 
 function pillsHtml(books, ui) {
@@ -225,7 +238,7 @@ function build(p) {
     LANG: esc(p.lang || 'kn'), TITLE: esc(p.title), TAGLINE: esc(p.tagline), DESC: esc(p.description),
     AUTHOR: esc(p.orgName), SITE: site, OGIMG: esc(sorted[0]?.cover || ''), GA: GA(p.gaId) || '',
     PARTNERS: partnersHtml(p.partners), CREDIT: creditHtml(p),
-    LIST: renderList(sorted.slice(0, PAGE), ui, read) + (sorted.length > PAGE ? '<div id="more" data-pages="' + Math.ceil(sorted.length / PAGE) + '"></div>' : ''), PILLS: pillsHtml(p.books, ui), COUNT: `${p.books.length} / ${p.books.length} ${esc(ui.ITEMS)}`,
+    LIST: renderList(sorted.slice(0, PAGE), ui, read) + (sorted.length > PAGE ? '<div id="more" data-pages="' + Math.ceil(sorted.length / PAGE) + '"></div>' : ''), PILLS: pillsHtml(p.books, ui), TOPICS: topicsHtml(p.books, ui), COUNT: `${p.books.length} / ${p.books.length} ${esc(ui.ITEMS)}`,
     LDJSON: jsonLd(p, site, sorted), FRAME: String(p.openMode === 'frame'), TJSON: JSON.stringify({ items: ui.ITEMS }).replace(/</g, '\\u003c'),
     SOK: `${fs.existsSync(path.join(TPL, 'img', 'sok-logo.png')) ? '<img src="./img/sok-logo.png" alt="">' : ''}<span>A <a href="https://archive.org/details/ServantsOfKnowledge" target="_blank" rel="noopener">Servants of Knowledge</a> Initiative</span>`,
     DESIGN: DESIGN_VERSION, READ: esc(read), ...Object.fromEntries(Object.entries(ui).map(([k, t]) => ['T_' + k, esc(t)])),
@@ -237,7 +250,7 @@ function build(p) {
   fs.rmSync(path.join(dir, 'p'), { recursive: true, force: true });
   if (sorted.length > PAGE) fs.mkdirSync(path.join(dir, 'p'));
   for (let i = PAGE, n = 1; i < sorted.length; i += PAGE, n++) fs.writeFileSync(path.join(dir, 'p', n + '.html'), renderList(sorted.slice(i, i + PAGE), ui, read));
-  fs.writeFileSync(path.join(dir, 'search.json'), JSON.stringify(sorted.map((b, i) => [b.identifier, yearOf(b) || 'unknown', qOf(b), Math.floor(i / PAGE)])));
+  fs.writeFileSync(path.join(dir, 'search.json'), JSON.stringify(sorted.map((b, i) => [b.identifier, yearOf(b) || 'unknown', qOf(b), Math.floor(i / PAGE), tagsOf(b)])));
   fs.writeFileSync(path.join(dir, 'issues.json'), JSON.stringify({ books: p.books }, null, 2));
   fs.writeFileSync(path.join(dir, 'sitemap.xml'), `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>${site}/</loc><lastmod>${new Date().toISOString().slice(0, 10)}</lastmod></url></urlset>\n`);
   fs.writeFileSync(path.join(dir, 'robots.txt'), `User-agent: *\nAllow: /\nSitemap: ${site}/sitemap.xml\n`);
@@ -480,4 +493,4 @@ if (require.main === module) {
   }
   server.listen(PORT, HOST, () => console.log(`portal-builder → http://${HOST}:${PORT}`));
 }
-module.exports = { refreshBooks, DESIGN_VERSION, fromOldSite, build, merge, toBook, server, authorized };
+module.exports = { renderList, refreshBooks, DESIGN_VERSION, fromOldSite, build, merge, toBook, server, authorized };
