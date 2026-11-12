@@ -215,6 +215,16 @@ function openProject(p) {
   $('#previewLink').hidden = true;
   cur = JSON.parse(JSON.stringify(p));
   cur.dirty = cur.dirty || (projects[cur.slug] && !cur.projectName ? Object.fromEntries(GEN.map((k) => [k, true])) : {});
+  // Imported portals have no prefix/query saved: infer them from the item identifiers so Fetch from IA works straight away.
+  const ids = (cur.books || []).map((b) => b.identifier).filter(Boolean);
+  if (ids.length && !cur.prefix) {
+    const common = ids.reduce((x, y) => { let i = 0; while (i < x.length && x[i] === y[i]) i++; return x.slice(0, i); });
+    const m = /^(.{4,}?[A-Za-z])\d/.exec(common); // stop before IA's numeric part (e.g. ...0000sure_1990_07), so the whole series matches
+    cur.prefix = m ? m[1] : common;
+  }
+  if (!cur.collection) cur.collection = DEFAULTS.collection;
+  if (!cur.query && cur.prefix) { cur.query = `collection:${cur.collection} AND identifier:${cur.prefix}*`; delete cur.dirty.query; }
+  if (!cur.projectName && projects[cur.slug]) cur.projectName = cur.title;
   $('#empty').hidden = true; form.hidden = false;
   for (const el of form.elements) if (el.name) el.value = cur[el.name] ?? '';
   form.slug.readOnly = !!projects[cur.slug];
