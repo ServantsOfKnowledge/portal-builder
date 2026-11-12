@@ -10,13 +10,14 @@ a:focus-visible, button:focus-visible, input:focus-visible, summary:focus-visibl
 .skip { position: absolute; left: -999px; top: 8px; background: #fff; padding: 8px 14px; border: 1px solid var(--ink); z-index: 20; }
 .skip:focus { left: 8px; }
 
-.top { max-width: 760px; margin: 0 auto; padding: 18px 20px 12px; }
-.brand { display: flex; align-items: center; justify-content: center; gap: 14px; }
+.top { max-width: 1180px; margin: 0 auto; padding: 18px 20px 12px; }
+.brand { display: grid; grid-template-columns: 1fr minmax(0, 760px) 1fr; align-items: center; gap: 14px; }
+.brand .logo { justify-self: start; }
 .logo { display: inline-block; }
 .logo img { height: 40px; width: auto; display: block; }
-h1 { font-size: 1.3rem; line-height: 1.3; margin: 0; font-weight: 700; text-align: left; }
-.tagline { margin: 4px 0 0; color: var(--mute); font-size: .88rem; }
-.about { margin: 6px auto 0; color: var(--mute); font-size: .85rem; line-height: 1.5; }
+h1 { font-size: 1.3rem; line-height: 1.3; margin: 0; font-weight: 700; text-align: center; grid-column: 2; }
+.tagline { max-width: 760px; margin: 4px auto 0; color: var(--mute); font-size: .88rem; }
+.about { max-width: 760px; margin: 6px auto 0; color: var(--mute); font-size: .85rem; line-height: 1.5; }
 .about h2 { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 .about p { margin: 0; text-align: center; }
 
@@ -69,3 +70,5 @@ dialog#viewer::backdrop { background: rgba(0,0,0,.55); }
 @media (max-width: 520px) { .cards { grid-template-columns: repeat(2, 1fr); gap: 22px 14px; } h1 { font-size: 1.4rem; } .vtitle { display: none; } }
 @media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
 #more { height: 1px; }
+
+@media (max-width: 720px) { .brand { grid-template-columns: 1fr; justify-items: center; gap: 8px; } .brand .logo { justify-self: center; } h1 { grid-column: 1; } }

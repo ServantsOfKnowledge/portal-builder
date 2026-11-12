@@ -119,8 +119,8 @@ function sortBooks(books) {
 const qOf = (b) => [b.title, b.author, b.publisher, b.tags, b.level, volOf(b), issOf(b), b.identifier].join(' ').normalize('NFC').toLowerCase();
 // Bump when the portal template gains something worth rolling out to existing portals.
 // 1 = the original design (carries no marker), 2 = centred white design, SOK credit, paged loading, search index,
-// 3 = one flat list (no per-year sections), comma-separated subject tags.
-const DESIGN_VERSION = 3;
+// 3 = one flat list (no per-year sections), comma-separated subject tags, 4 = logo left with the title centred.
+const DESIGN_VERSION = 4;
 const PAGE = 30; // cards per page; later pages load as the reader scrolls
 function cardHtml(b, h, ui, read) {
   const vol = volOf(b), iss = issOf(b), id = esc(b.identifier);
