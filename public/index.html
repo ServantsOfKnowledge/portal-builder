@@ -272,7 +272,7 @@ async function persist() {
   readForm();
   await api('PUT', 'projects', cur);
   projects[cur.slug] = JSON.parse(JSON.stringify(cur));
-  form.slug.readOnly = true; renderList();
+  form.slug.readOnly = true; renderList(); showLive(); $('#revertBtn').hidden = false;
 }
 
 // Run an async action with the buttons disabled; surface errors in the log.
