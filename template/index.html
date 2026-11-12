@@ -28,7 +28,7 @@
   <a class="logo" href="./" aria-label="__TITLE__"><img src="./img/logo.png" alt="" height="56"></a>
   <h1>__TITLE__</h1>
   <p class="tagline">__TAGLINE__</p>
-  <details class="about"><summary>__T_ABOUT__</summary><p>__DESC__</p></details>
+  <section class="about"><h2>__T_ABOUT__</h2><p>__DESC__</p></section>
 </header>
 
 <div class="bar">
@@ -61,20 +61,57 @@ __VIEWER__
   var FRAME = __FRAME__, T = __TJSON__;
   var $ = function (s) { return document.querySelector(s); };
   var $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
-  var q = $('#q'), cards = $$('.card'), pills = $$('.pill'), year = 'any';
+  var q = $('#q'), pills = $$('.pill'), year = 'any', more = $('#more');
+  var pages = more ? +more.dataset.pages : 1, next = 1, total = parseInt($('#count').textContent, 10) || 0;
   var norm = function (s) { return s.normalize('NFC').toLowerCase(); };
+  var cards = function () { return $$('.card'); };
+  var loaded = { 0: 1 }, pending = {}, index = null, token = 0;
 
-  function apply() {
-    var terms = norm(q.value).split(/\s+/).filter(Boolean), n = 0;
-    cards.forEach(function (c) {
-      var ok = (year === 'any' || c.dataset.year === year) && terms.every(function (t) { return c.dataset.q.indexOf(t) > -1; });
-      c.hidden = !ok; if (ok) n++;
+  // Pages 1.. are fragments: merge them under the year/volume heading already on screen.
+  function attach(html) {
+    var box = document.createElement('div'); box.innerHTML = html;
+    $$('section.year', box).forEach(function (sec) {
+      var ys = $$('main section.year'), last = ys[ys.length - 1];
+      if (!last || last.dataset.year !== sec.dataset.year) return (more || $('#none')).before(sec);
+      $$('.vol', sec).forEach(function (v) {
+        var vs = $$('.vol', last), lv = vs[vs.length - 1];
+        if (lv && lv.dataset.vol === v.dataset.vol) $$('li', v).forEach(function (li) { lv.querySelector('ul').append(li); });
+        else last.append(v);
+      });
     });
+  }
+  function load(n) {
+    if (loaded[n]) return Promise.resolve();
+    return pending[n] || (pending[n] = fetch('p/' + n + '.html').then(function (r) { return r.text(); }).then(function (h) { attach(h); loaded[n] = 1; }));
+  }
+  function loadNext() { return next < pages ? load(next++).then(function () { if (next >= pages && more) more.remove(); }) : Promise.resolve(); }
+  function getIndex() {
+    return index ? Promise.resolve(index) : fetch('search.json').then(function (r) { return r.json(); }).then(function (j) { return (index = j); });
+  }
+
+  var busy = false;
+  function apply() {
+    var terms = norm(q.value).split(/\s+/).filter(Boolean), me = ++token;
+    if (year === 'any' && !terms.length) {
+      cards().forEach(function (c) { c.hidden = false; });
+      groups(); $('#count').textContent = total + ' / ' + total + ' ' + T.items; $('#none').hidden = true; watch();
+      return;
+    }
+    getIndex().then(function (idx) {
+      var hit = idx.filter(function (r) { return (year === 'any' || r[1] === year) && terms.every(function (t) { return r[2].indexOf(t) > -1; }); });
+      var need = {}; hit.forEach(function (r) { need[r[3]] = 1; });
+      return Promise.all(Object.keys(need).map(load)).then(function () {
+        if (me !== token) return;
+        var ids = {}; hit.forEach(function (r) { ids[r[0]] = 1; });
+        cards().forEach(function (c) { c.hidden = !ids[c.dataset.id]; });
+        groups(); $('#count').textContent = hit.length + ' / ' + total + ' ' + T.items; $('#none').hidden = hit.length > 0;
+      });
+    });
+  }
+  function groups() {
     ['.vol', '.year'].forEach(function (sel) {
       $$(sel).forEach(function (g) { g.hidden = !g.querySelector('.card:not([hidden])'); });
     });
-    $('#count').textContent = n + ' / ' + cards.length + ' ' + T.items;
-    $('#none').hidden = n > 0;
   }
   q.addEventListener('input', apply);
   pills.forEach(function (p) {
@@ -85,11 +122,18 @@ __VIEWER__
     });
   });
 
+  // Auto-load the next page when the end of the list nears (only while nothing is filtered).
+  var io = more && 'IntersectionObserver' in window ? new IntersectionObserver(function (e) {
+    if (e[0].isIntersecting && year === 'any' && !q.value.trim()) loadNext().then(watch);
+  }, { rootMargin: '800px' }) : null;
+  function watch() { if (io && more && more.isConnected) { io.unobserve(more); io.observe(more); } }
+  if (io) watch(); else if (more) { while (next < pages) loadNext(); } // no IntersectionObserver: load everything
+
   // shortcut: random pick only highlights; it never opens (popup blockers, and readers can still choose).
   $('#rand').addEventListener('click', function () {
-    var vis = cards.filter(function (c) { return !c.hidden; });
+    var vis = cards().filter(function (c) { return !c.hidden; });
     if (!vis.length) return;
-    cards.forEach(function (c) { c.classList.remove('hit'); });
+    cards().forEach(function (c) { c.classList.remove('hit'); });
     var c = vis[Math.floor(Math.random() * vis.length)];
     c.classList.add('hit');
     c.scrollIntoView({ block: 'center' });
@@ -98,7 +142,7 @@ __VIEWER__
 
   if (FRAME) {
     var dlg = $('#viewer'), fr = $('#vframe'), cur = -1;
-    var items = function () { return cards.filter(function (c) { return !c.hidden; }).map(function (c) { return c.querySelector('a.t'); }); };
+    var items = function () { return cards().filter(function (c) { return !c.hidden; }).map(function (c) { return c.querySelector('a.t'); }); };
     var show = function (a) {
       var l = items(); cur = l.indexOf(a);
       fr.src = 'https://archive.org/embed/' + a.dataset.id;
@@ -111,7 +155,10 @@ __VIEWER__
       if (!a || e.button || e.metaKey || e.ctrlKey || e.shiftKey) return;
       e.preventDefault(); show(a.closest('.card').querySelector('a.t'));
     });
-    var step = function (d) { var l = items(), n = l[cur + d]; if (n) show(n); };
+    var step = function (d) {
+      var l = items(), n = l[cur + d];
+      if (n) show(n); else if (d > 0 && next < pages && year === 'any' && !q.value.trim()) loadNext().then(function () { var m = items()[cur + d]; if (m) show(m); });
+    };
     $('#vprev').addEventListener('click', function () { step(-1); });
     $('#vnext').addEventListener('click', function () { step(1); });
     $('#vclose').addEventListener('click', function () { dlg.close(); });

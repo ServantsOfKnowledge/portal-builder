@@ -16,8 +16,8 @@ a:focus-visible, button:focus-visible, input:focus-visible, summary:focus-visibl
 h1 { font-size: 1.7rem; line-height: 1.3; margin: 14px 0 0; font-weight: 700; }
 .tagline { margin: 6px 0 0; color: var(--mute); font-size: .95rem; }
 .about { margin: 14px auto 0; color: var(--mute); font-size: .92rem; }
-.about summary { cursor: pointer; display: inline-block; }
-.about p { margin: 10px 0 0; text-align: left; }
+.about h2 { margin: 0; font-size: .8rem; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--ink); }
+.about p { margin: 6px 0 0; text-align: center; }
 
 .bar { position: sticky; top: 0; z-index: 10; background: rgba(255,255,255,.97); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 12px 20px 8px; }
 .controls { display: flex; gap: 10px; justify-content: center; max-width: 560px; margin: 0 auto; }
@@ -67,3 +67,4 @@ dialog#viewer::backdrop { background: rgba(0,0,0,.55); }
 
 @media (max-width: 520px) { .cards { grid-template-columns: repeat(2, 1fr); gap: 22px 14px; } h1 { font-size: 1.4rem; } .vtitle { display: none; } }
 @media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
+#more { height: 1px; }

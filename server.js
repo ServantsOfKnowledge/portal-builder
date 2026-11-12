@@ -114,13 +114,14 @@ function sortBooks(books) {
   return [...books].sort((a, b) => (y(a) < y(b) ? -1 : y(a) > y(b) ? 1 : a.identifier.localeCompare(b.identifier, 'en', { numeric: true })));
 }
 
+const qOf = (b) => [b.title, b.author, b.publisher, b.tags, b.level, volOf(b), issOf(b), b.identifier].join(' ').normalize('NFC').toLowerCase();
+const PAGE = 30; // cards per page; later pages load as the reader scrolls
 function cardHtml(b, h, ui, read) {
   const vol = volOf(b), iss = issOf(b), id = esc(b.identifier);
-  const q = esc([b.title, b.author, b.publisher, b.tags, b.level, vol, iss, b.identifier].join(' ').normalize('NFC').toLowerCase());
   const author = b.author ? (safeUrl(b.authorUrl) ? `<a href="${safeUrl(b.authorUrl)}" target="_blank" rel="noopener">${esc(b.author)}</a>` : esc(b.author)) : '';
   const facts = [iss && `${ui.ISSUE} ${esc(iss)}`, b.pages && `${esc(b.pages)} ${ui.PAGES}`].filter(Boolean).join(' · ');
   const open = (cls, label) => `<a class="open ${cls}" data-id="${id}" data-title="${esc(b.title)}" href="${esc(b.url)}" target="_blank" rel="noopener">${label}</a>`;
-  return `<li class="card" data-year="${esc(yearOf(b) || 'unknown')}" data-q="${q}">
+  return `<li class="card" data-id="${id}" data-year="${esc(yearOf(b) || 'unknown')}">
 <a class="cover open" data-id="${id}" data-title="${esc(b.title)}" href="${esc(b.url)}" target="_blank" rel="noopener" tabindex="-1" aria-hidden="true"><img src="${esc(b.cover)}" alt="" loading="lazy" decoding="async" width="300" height="400"></a>
 <${h}>${open('t', esc(b.title))}</${h}>
 ${author ? `<p class="meta">${author}</p>` : ''}${facts ? `<p class="meta">${facts}</p>` : ''}
@@ -140,7 +141,7 @@ function renderList(books, ui, read) {
     }
     if (vol !== v) {
       closeVol();
-      out += `<div class="vol">${vol ? `<h3>${ui.VOL} ${esc(vol)}</h3>` : ''}<ul class="cards">`; v = vol;
+      out += `<div class="vol" data-vol="${esc(vol)}">${vol ? `<h3>${ui.VOL} ${esc(vol)}</h3>` : ''}<ul class="cards">`; v = vol;
     }
     out += cardHtml(b, vol ? 'h4' : 'h3', ui, read);
   }
@@ -198,7 +199,7 @@ function build(p) {
     LANG: esc(p.lang || 'kn'), TITLE: esc(p.title), TAGLINE: esc(p.tagline), DESC: esc(p.description),
     AUTHOR: esc(p.orgName), SITE: site, OGIMG: esc(sorted[0]?.cover || ''), GA: GA(p.gaId) || '',
     PARTNERS: partnersHtml(p.partners), CREDIT: creditHtml(p),
-    LIST: renderList(p.books, ui, read), PILLS: pillsHtml(p.books, ui), COUNT: `${p.books.length} / ${p.books.length} ${esc(ui.ITEMS)}`,
+    LIST: renderList(sorted.slice(0, PAGE), ui, read) + (sorted.length > PAGE ? '<div id="more" data-pages="' + Math.ceil(sorted.length / PAGE) + '"></div>' : ''), PILLS: pillsHtml(p.books, ui), COUNT: `${p.books.length} / ${p.books.length} ${esc(ui.ITEMS)}`,
     LDJSON: jsonLd(p, site, sorted), FRAME: String(p.openMode === 'frame'), TJSON: JSON.stringify({ items: ui.ITEMS }).replace(/</g, '\\u003c'),
     SOK: `${fs.existsSync(path.join(TPL, 'img', 'sok-logo.png')) ? '<img src="./img/sok-logo.png" alt="">' : ''}<span>A <a href="https://archive.org/details/ServantsOfKnowledge" target="_blank" rel="noopener">Servants of Knowledge</a> Initiative</span>`,
     READ: esc(read), ...Object.fromEntries(Object.entries(ui).map(([k, t]) => ['T_' + k, esc(t)])),
@@ -207,6 +208,10 @@ function build(p) {
   const html = fs.readFileSync(path.join(TPL, 'index.html'), 'utf8').replace('__VIEWER__', () => viewer)
     .replace(/__([A-Z_]+)__/g, (m, k) => (k in v ? v[k] : m));
   fs.writeFileSync(path.join(dir, 'index.html'), html);
+  fs.rmSync(path.join(dir, 'p'), { recursive: true, force: true });
+  if (sorted.length > PAGE) fs.mkdirSync(path.join(dir, 'p'));
+  for (let i = PAGE, n = 1; i < sorted.length; i += PAGE, n++) fs.writeFileSync(path.join(dir, 'p', n + '.html'), renderList(sorted.slice(i, i + PAGE), ui, read));
+  fs.writeFileSync(path.join(dir, 'search.json'), JSON.stringify(sorted.map((b, i) => [b.identifier, yearOf(b) || 'unknown', qOf(b), Math.floor(i / PAGE)])));
   fs.writeFileSync(path.join(dir, 'issues.json'), JSON.stringify({ books: p.books }, null, 2));
   fs.writeFileSync(path.join(dir, 'sitemap.xml'), `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>${site}/</loc><lastmod>${new Date().toISOString().slice(0, 10)}</lastmod></url></urlset>\n`);
   fs.writeFileSync(path.join(dir, 'robots.txt'), `User-agent: *\nAllow: /\nSitemap: ${site}/sitemap.xml\n`);
