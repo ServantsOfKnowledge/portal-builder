@@ -35,7 +35,7 @@ async function iaFetch(q) {
   for (let page = 1; ; page++) {
     const u = new URL('https://archive.org/advancedsearch.php');
     u.searchParams.set('q', q);
-    for (const f of ['identifier', 'title', 'creator', 'publisher', 'description', 'subject', 'date', 'year', 'imagecount', 'licenseurl', 'volume', 'issue']) u.searchParams.append('fl[]', f);
+    for (const f of ['identifier', 'title', 'creator', 'publisher', 'description', 'subject', 'date', 'year', 'imagecount', 'licenseurl', 'volume', 'issue', 'collection']) u.searchParams.append('fl[]', f);
     u.searchParams.append('sort[]', 'identifier asc');
     u.searchParams.set('rows', '500'); u.searchParams.set('page', page); u.searchParams.set('output', 'json');
     const r = await fetch(u);
@@ -44,6 +44,20 @@ async function iaFetch(q) {
     docs.push(...response.docs);
     if (!response.docs.length || docs.length >= response.numFound) return docs;
   }
+}
+
+// Which IA collection do these items live in? The most common specific one (not opensource, texts, language lists ...).
+const GENERIC = /^(opensource|community|additional_collections|texts|opensource_media|inlibrary|printdisabled|internetarchivebooks|americana|booksbylanguage.*|folkscanomy.*|fav-.*)$/i;
+function pickCollection(rows) {
+  const n = new Map();
+  for (const r of rows) for (const c of new Set(arr(r.collection))) if (!GENERIC.test(c)) n.set(c, (n.get(c) || 0) + 1);
+  const rank = ([c, k]) => [-k, c === 'ServantsOfKnowledge' ? 0 : 1, c]; // ties: prefer ServantsOfKnowledge
+  return [...n].sort((x, y) => { const p = rank(x), q = rank(y); return p[0] - q[0] || p[1] - q[1] || p[2].localeCompare(q[2]); })[0]?.[0] || '';
+}
+async function inferCollection(ids) {
+  const sample = ids.slice(0, 40);
+  const docs = await iaFetch(`identifier:(${sample.map((x) => `"${x}"`).join(' OR ')})`);
+  return pickCollection(docs);
 }
 
 // IA packs subjects as 'a; b; c'. Portals filter on comma-separated tags, so split on ; and , and rejoin with commas.
@@ -451,6 +465,7 @@ async function api(req, res, url) {
     } catch (e) { log.push(e.message); send(res, 200, { ok: false, log }); }
     return;
   }
+  if (name === 'infer') return send(res, 200, { collection: await inferCollection((b.ids || []).filter((x) => /^[\w.\-]+$/.test(x))) });
   if (name === 'build') { build(db[slug]); return send(res, 200, { preview: `/preview/${slug}/` }); }
   if (name === 'launch') {
     const log = [];
@@ -493,4 +508,4 @@ if (require.main === module) {
   }
   server.listen(PORT, HOST, () => console.log(`portal-builder → http://${HOST}:${PORT}`));
 }
-module.exports = { renderList, refreshBooks, DESIGN_VERSION, fromOldSite, build, merge, toBook, server, authorized };
+module.exports = { pickCollection, renderList, refreshBooks, DESIGN_VERSION, fromOldSite, build, merge, toBook, server, authorized };

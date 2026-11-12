@@ -225,6 +225,16 @@ function openProject(p) {
   if (!cur.collection) cur.collection = DEFAULTS.collection;
   if (!cur.query && cur.prefix) { cur.query = `collection:${cur.collection} AND identifier:${cur.prefix}*`; delete cur.dirty.query; }
   if (!cur.projectName && projects[cur.slug]) cur.projectName = cur.title;
+  // Ask archive.org which collection these items are in, and build the query from that (fills gaps where no common prefix exists).
+  const slug0 = cur.slug, auto = cur.query;
+  if (cur.imported && !cur.collectionKnown && ids.length) api('POST', 'infer', { ids: ids.slice(0, 40) }).then((r) => {
+    if (!r.collection || !cur || cur.slug !== slug0) return;
+    cur.collection = form.collection.value = r.collection; cur.collectionKnown = true;
+    if (!cur.query || cur.query === auto) {
+      cur.query = form.query.value = cur.prefix ? `collection:${r.collection} AND identifier:${cur.prefix}*` : `collection:${r.collection}`;
+      log(`Query built from archive.org: ${cur.query}`, 'ok');
+    }
+  }).catch(() => {});
   $('#empty').hidden = true; form.hidden = false;
   for (const el of form.elements) if (el.name) el.value = cur[el.name] ?? '';
   form.slug.readOnly = !!projects[cur.slug];
