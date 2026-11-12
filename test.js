@@ -61,4 +61,10 @@ fs.rmSync(dir, { recursive: true });
 const basic = (u, p) => 'Basic ' + Buffer.from(`${u}:${p}`).toString('base64');
 assert(authorized(basic('admin', 'p:w'), 'admin', 'p:w'), 'auth ok (password may contain colon)');
 assert(!authorized(basic('admin', 'x'), 'admin', 'p:w') && !authorized(basic('bob', 'p:w'), 'admin', 'p:w') && !authorized('', 'admin', 'p:w'));
+
+{ // importing an old portal
+  const { fromOldSite } = require('./server.js');
+  const p = fromOldSite('sanchaya', 'Janapada-Vichara', { issues: '{"books":[{"identifier":"a","publisher":"Pub"}]}', html: '<html lang="kn"><title>T</title><meta name="description" content="D">G-ABCDEF123', cname: 'jv.sanchaya.net\n', hasFrame: true });
+  assert(p.slug === 'janapada-vichara' && p.sub === 'jv' && p.domain === 'sanchaya.net' && p.title === 'T' && p.description === 'D' && p.orgName === 'Pub' && p.openMode === 'frame' && p.gaId === 'G-ABCDEF123' && p.books.length === 1);
+}
 console.log('ok');

@@ -53,9 +53,20 @@
   <div class="sidebrand"><img id="sokLogo" src="/sok-logo.png" alt="Servants of Knowledge" onerror="this.removeAttribute('src')"><h1>Portal Builder</h1><p>A <a href="https://archive.org/details/ServantsOfKnowledge" target="_blank" rel="noopener">Servants of Knowledge</a> Initiative</p></div>
   <div id="list"></div>
   <button class="item new" id="newBtn">+ New portal</button>
+  <button class="item new" id="ghBtn">↓ Import from GitHub</button>
 </aside>
 <main><div class="wrap">
   <div id="empty">Pick a portal on the left, or create a new one.</div>
+  <section id="ghPanel" hidden>
+    <fieldset><legend>Import existing portals</legend>
+      <div class="grid"><label>GitHub organization or user<input id="ghOwner" value="sanchaya"></label>
+      <label>&nbsp;<button type="button" class="b" id="ghList">List portals</button></label></div>
+      <p class="hint">Finds every repo with an issues.json. Needs <code>gh</code> signed in (or GH_TOKEN) on the machine running this app.</p>
+      <div class="scroll" id="ghRows" hidden><table><thead><tr><th></th><th>Repo</th><th>Domain</th><th>Status</th></tr></thead><tbody></tbody></table></div>
+      <div class="bar"><button type="button" class="b pri" id="ghImport" hidden>Import selected</button></div>
+      <pre id="ghLog">—</pre>
+    </fieldset>
+  </section>
   <form id="form" hidden>
     <fieldset><legend>Start here</legend><div class="grid">
       <label>Project name (becomes the title)<input name="projectName" placeholder="e.g. ಜನಪದ ವಿಚಾರ" autocomplete="off"></label>
@@ -121,6 +132,7 @@
       <button type="submit" class="b">Save</button>
       <button type="button" class="b" id="previewBtn">Preview locally</button>
       <button type="button" class="b pri" id="launchBtn">Launch / Push to GitHub</button>
+      <button type="button" class="b pri" id="modBtn" hidden>Modernise design &amp; push</button>
       <button type="button" class="b" id="dupBtn">Duplicate as new</button>
       <button type="button" class="b" id="delBtn">Remove</button>
     </div>
@@ -300,6 +312,41 @@ $('#delBtn').onclick = () => busy(async () => {
   if (!projects[cur.slug] || !confirm('Remove from this list? (The GitHub repo and local workspace folder are untouched.)')) return;
   await api('DELETE', 'projects/' + cur.slug); delete projects[cur.slug];
   cur = null; form.hidden = true; $('#empty').hidden = false; renderList();
+});
+
+const showModernise = () => { $('#modBtn').hidden = !(cur && projects[cur.slug] && projects[cur.slug].imported && !projects[cur.slug].modernised); };
+const _open = openProject; openProject = (p) => { $('#ghPanel').hidden = true; _open(p); showModernise(); };
+
+$('#ghBtn').onclick = () => { form.hidden = true; $('#empty').hidden = true; $('#ghPanel').hidden = false; cur = null; renderList(); };
+$('#ghList').onclick = () => busy(async () => {
+  const gl = (t, c = '') => { $('#ghLog').innerHTML = `<span class="${c}">${t.replace(/</g, '&lt;')}</span>`; };
+  gl('Listing…');
+  const r = await api('GET', 'gh?owner=' + encodeURIComponent($('#ghOwner').value.trim()));
+  if (r.error) return gl(r.error, 'err');
+  const tb = $('#ghRows tbody'); tb.innerHTML = '';
+  r.forEach((x) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td><input type="checkbox" value="${x.name}" ${x.imported ? '' : 'checked'}></td><td>${x.name}</td><td>${x.domain || ''}</td><td>${x.modernised ? 'modernised' : x.imported ? 'imported' : 'not imported'}</td>`;
+    tb.append(tr);
+  });
+  $('#ghRows').hidden = $('#ghImport').hidden = !r.length;
+  gl(r.length ? `${r.length} portals found.` : 'No portals (repos with issues.json) found.', r.length ? 'ok' : 'err');
+});
+$('#ghImport').onclick = () => busy(async () => {
+  const repos = [...document.querySelectorAll('#ghRows input:checked')].map((i) => i.value);
+  if (!repos.length) return;
+  $('#ghLog').textContent = 'Importing…';
+  const r = await api('POST', 'import', { owner: $('#ghOwner').value.trim(), repos });
+  projects = r.projects; renderList();
+  $('#ghLog').textContent = r.log.join('\n') + '\n\nImported. Pick a portal on the left, then use "Modernise design & push".';
+});
+$('#modBtn').onclick = () => busy(async () => {
+  await persist();
+  if (!confirm(`Modernise ${cur.owner}/${cur.repo}?\n\nThe current design is saved on a backup-old-design-* branch, then the new design is pushed to ${cur.defaultBranch || 'master'} and gh-pages.\n\nTip: use "Preview locally" first.`)) return;
+  log('Modernising…');
+  const r = await api('POST', 'modernise/' + cur.slug);
+  log(r.log.join('\n'), r.ok ? 'ok' : 'err');
+  if (r.ok) { projects = await api('GET', 'projects'); cur = JSON.parse(JSON.stringify(projects[cur.slug])); showModernise(); }
 });
 
 api('GET', 'projects').then((p) => { projects = p; renderList(); });

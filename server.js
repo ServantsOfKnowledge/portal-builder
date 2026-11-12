@@ -234,8 +234,9 @@ async function sh(cmd, args, cwd, log) {
 async function launch(p, log) {
   const { dir, host } = build(p);
   const g = (...a) => sh('git', a, dir, log);
+  const br = p.defaultBranch || 'master';
   const fresh = !fs.existsSync(path.join(dir, '.git'));
-  if (fresh) await g('init', '-b', 'master');
+  if (fresh) await g('init', '-b', br);
   await g('config', 'user.name', GIT_NAME);
   await g('config', 'user.email', GIT_EMAIL);
   await g('add', '-A');
@@ -249,12 +250,103 @@ async function launch(p, log) {
   if (!exists) await sh('gh', ['repo', 'create', repo, '--public', '--description', p.title.slice(0, 340)], dir, log);
   const hasOrigin = (await run('git', ['remote'], { cwd: dir })).stdout.split('\n').includes('origin');
   await g('remote', hasOrigin ? 'set-url' : 'add', 'origin', url);
-  await g('push', '-u', 'origin', 'master');
-  await g('push', 'origin', 'master:gh-pages');
+  await g('push', '-u', 'origin', br);
+  await g('push', 'origin', `${br}:gh-pages`);
   await sh('gh', ['api', '-X', 'POST', `repos/${repo}/pages`, '-f', 'source[branch]=gh-pages', '-f', 'source[path]=/'], dir, log)
     .catch(() => log.push('(Pages already enabled, or enable it in repo Settings → Pages)'));
   log.push(`\nDone. Add DNS: ${p.sub || p.slug}  CNAME  ${p.owner.toLowerCase()}.github.io.`);
   log.push(`Then tick "Enforce HTTPS" in the repo's Pages settings once DNS resolves → https://${host}`);
+}
+
+
+// ---- existing portals on GitHub: list, import, modernise -------------------
+const ghJson = async (args) => (await run('gh', ['api', ...args], { maxBuffer: 50e6 })).stdout;
+const ownerOk = (o) => { if (!/^[A-Za-z0-9-]+$/.test(o || '')) throw new Error('GitHub owner is invalid'); return o; };
+const ndjson = (t) => t.split('\n').filter(Boolean).map((l) => JSON.parse(l));
+
+// Every repo of an org (or user) that has an issues.json in its root, i.e. a portal.
+async function listPortals(owner) {
+  ownerOk(owner);
+  const jq = '.[] | {name,default_branch,description,archived,pushed_at}';
+  let repos;
+  try { repos = ndjson(await ghJson([`orgs/${owner}/repos?per_page=100&type=public`, '--paginate', '--jq', jq])); }
+  catch { repos = ndjson(await ghJson([`users/${owner}/repos?per_page=100&type=owner`, '--paginate', '--jq', jq])); }
+  const db = load(), out = [];
+  for (let i = 0; i < repos.length; i += 6) {
+    await Promise.all(repos.slice(i, i + 6).map(async (r) => {
+      try {
+        const names = JSON.parse(await ghJson([`repos/${owner}/${r.name}/contents/?ref=${encodeURIComponent(r.default_branch)}`, '--jq', '[.[].name]']));
+        if (!names.includes('issues.json')) return;
+        const cname = names.includes('CNAME') ? (await ghJson([`repos/${owner}/${r.name}/contents/CNAME`, '-H', 'Accept: application/vnd.github.raw'])).trim() : '';
+        const slug = slugOfRepo(r.name);
+        out.push({ ...r, domain: cname, slug, imported: !!db[slug], modernised: !!db[slug]?.modernised });
+      } catch { /* unreadable repo: skip */ }
+    }));
+  }
+  return out.sort((a, b) => a.name.localeCompare(b.name));
+}
+const slugOfRepo = (n) => n.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+
+// Turn an old portal's files into a project config (best effort; everything stays editable).
+function fromOldSite(owner, repo, f) {
+  const j = JSON.parse(f.issues);
+  const books = (Array.isArray(j) ? j : j.books || []).filter((b) => b && b.identifier);
+  const m = (re) => (re.exec(f.html || '') || [])[1] || '';
+  const host = (f.cname || '').trim().toLowerCase(), [sub, ...rest] = host.split('.');
+  const lang = m(/<html[^>]*\blang=["']([\w-]+)/i) || 'kn';
+  const slug = slugOfRepo(repo);
+  const title = strip(m(/<title[^>]*>([\s\S]*?)<\/title>/i)) || repo;
+  const desc = strip(m(/<meta[^>]+name=["']description["'][^>]+content=["']([^"']*)/i));
+  return {
+    slug, owner, repo, sub: sub || slug, domain: rest.join('.') || 'sanchaya.net',
+    title, tagline: '', description: desc, orgName: books.find((b) => b.publisher)?.publisher || owner, orgUrl: '',
+    lang, readLabel: lang.startsWith('kn') ? 'ಓದಿರಿ' : 'Read', openMode: f.hasFrame ? 'frame' : 'tab',
+    gaId: m(/\b(G-[A-Z0-9]{6,})\b/), partners: '', footer: '', query: '', info: '', books,
+    projectName: '', prefix: '', collaborator: '', program: '', about: '',
+    dirty: { title: 1, tagline: 1, description: 1, orgName: 1, query: 1, info: 1, slug: 1 },
+    imported: true, modernised: false,
+  };
+}
+
+async function importPortal(owner, repo, log) {
+  ownerOk(owner);
+  if (!/^[A-Za-z0-9._-]+$/.test(repo)) throw new Error('repo name is invalid');
+  const slug = slugOfRepo(repo), dir = path.join(WS, slug);
+  if (fs.existsSync(path.join(dir, '.git'))) await sh('git', ['pull', '--ff-only'], dir, log);
+  else { fs.mkdirSync(WS, { recursive: true }); await sh('gh', ['repo', 'clone', `${owner}/${repo}`, dir], WS, log); }
+  const rd = (n) => (fs.existsSync(path.join(dir, n)) ? fs.readFileSync(path.join(dir, n), 'utf8') : '');
+  const p = fromOldSite(owner, repo, { issues: rd('issues.json'), html: rd('index.html'), cname: rd('CNAME'), hasFrame: fs.existsSync(path.join(dir, 'frame.html')) });
+  p.defaultBranch = (await run('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: dir })).stdout.trim();
+  const logo = path.join(dir, 'img', 'logo.png');
+  if (fs.existsSync(logo)) { const a = path.join(DATA, 'assets', slug); fs.mkdirSync(a, { recursive: true }); fs.copyFileSync(logo, path.join(a, 'logo.png')); }
+  const db = load(); validate(p); db[slug] = { ...p, ...Object.fromEntries(Object.entries(db[slug] || {}).filter(([k]) => ['modernised'].includes(k))) }; save(db);
+  log.push(`Imported ${owner}/${repo}: ${p.books.length} items, ${p.sub}.${p.domain}`);
+  return slug;
+}
+
+// Back up the live design on branches, replace the repo content with the new design, push everything.
+async function modernise(p, log) {
+  const dir = path.join(WS, p.slug), g = (...a) => sh('git', a, dir, log);
+  if (!fs.existsSync(path.join(dir, '.git'))) throw new Error('import this portal first');
+  const br = p.defaultBranch || 'master', t = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 12);
+  await g('config', 'user.name', GIT_NAME); await g('config', 'user.email', GIT_EMAIL);
+  await g('fetch', 'origin');
+  await g('checkout', br);
+  await g('reset', '--hard', `origin/${br}`);
+  const heads = (await run('git', ['ls-remote', '--heads', 'origin'], { cwd: dir })).stdout;
+  const hasPages = /\srefs\/heads\/gh-pages$/m.test(heads);
+  await g('push', 'origin', `HEAD:refs/heads/backup-old-design-${t}`);
+  if (hasPages) await g('push', 'origin', `origin/gh-pages:refs/heads/backup-old-design-pages-${t}`);
+  log.push(`Old design kept on branch backup-old-design-${t}`);
+  await g('rm', '-rq', '--ignore-unmatch', '.');
+  build(p);
+  await g('add', '-A');
+  if ((await run('git', ['status', '--porcelain'], { cwd: dir })).stdout.trim()) await g('commit', '-m', `Modernise portal design (old design kept on backup-old-design-${t})`);
+  else log.push('(design already up to date)');
+  await g('push', 'origin', br);
+  if (hasPages) await g('push', 'origin', `${br}:gh-pages`).catch(() => g('push', '--force-with-lease', 'origin', `${br}:gh-pages`)); // old gh-pages is backed up above
+  else await sh('gh', ['api', '-X', 'POST', `repos/${p.owner}/${p.repo || p.slug}/pages`, '-f', `source[branch]=${br}`, '-f', 'source[path]=/'], dir, log).catch(() => log.push('(Pages already enabled)'));
+  log.push(`\nDone. GitHub Pages will refresh in a minute or two → https://${p.sub || p.slug}.${p.domain}`);
 }
 
 // ---- http ------------------------------------------------------------------
@@ -273,6 +365,10 @@ async function api(req, res, url) {
   const db = load();
   const [, , name, slug] = url.pathname.split('/');
   if (req.method === 'GET' && name === 'projects') return send(res, 200, db);
+  if (req.method === 'GET' && name === 'gh') {
+    try { return send(res, 200, await listPortals(url.searchParams.get('owner'))); }
+    catch (e) { return send(res, 200, { error: 'Could not list repos: ' + ((e.stderr || e.message) + '').trim().slice(0, 300) }); }
+  }
   let body = '';
   for await (const c of req) { body += c; if (body.length > 30e6) throw new Error('body too large'); }
   const b = body ? JSON.parse(body) : {};
@@ -293,6 +389,20 @@ async function api(req, res, url) {
     fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(path.join(dir, kind + '.png'), Buffer.from(b.dataUrl.split(',')[1], 'base64'));
     return send(res, 200, { ok: true });
+  }
+  if (name === 'import') {
+    const log = [], done = [];
+    for (const r of b.repos || []) { try { done.push(await importPortal(b.owner, r, log)); } catch (e) { log.push(`${r}: ${((e.stderr || e.message) + '').trim().slice(0, 300)}`); } }
+    return send(res, 200, { slugs: done, log, projects: load() });
+  }
+  if (name === 'modernise') {
+    const log = [], p = db[slug];
+    try {
+      if (!p || !p.imported) throw new Error('only imported portals can be modernised');
+      await modernise(p, log); p.modernised = true; save({ ...db, [slug]: p });
+      send(res, 200, { ok: true, log });
+    } catch (e) { log.push(e.message); send(res, 200, { ok: false, log }); }
+    return;
   }
   if (name === 'build') { build(db[slug]); return send(res, 200, { preview: `/preview/${slug}/` }); }
   if (name === 'launch') {
@@ -336,4 +446,4 @@ if (require.main === module) {
   }
   server.listen(PORT, HOST, () => console.log(`portal-builder → http://${HOST}:${PORT}`));
 }
-module.exports = { build, merge, toBook, server, authorized };
+module.exports = { fromOldSite, build, merge, toBook, server, authorized };

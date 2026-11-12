@@ -36,3 +36,7 @@ The server refuses to start on a public address without a password, and every re
 ## Logo
 
 The Servants of Knowledge logo lives at `template/img/sok-logo.png` (portal footers) and `public/sok-logo.png` (this app). Replace either file to change it; if a file is removed, only the name is shown.
+
+## Existing portals
+
+**Import from GitHub** (sidebar) lists every repo of an org or user that has an `issues.json`, and imports the ones you tick. For an imported portal, **Modernise design & push** saves the live design on a `backup-old-design-*` branch (and `backup-old-design-pages-*` for gh-pages), replaces the repo with the new design, and pushes the default branch and `gh-pages`. Needs `gh` signed in (or `GH_TOKEN`) where the app runs.
