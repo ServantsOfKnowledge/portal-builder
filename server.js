@@ -117,13 +117,37 @@ async function refreshFromIA(books, log) {
 }
 
 // Items that no longer exist on archive.org (looked up by identifier). On any error nothing is reported missing.
+// Search can lag behind uploads, so anything search does not return is confirmed against the metadata API (gone or dark = missing).
+async function itemGone(id) {
+  try {
+    const r = await fetch(`https://archive.org/metadata/${encodeURIComponent(id)}`);
+    if (!r.ok) return false;
+    const j = await r.json();
+    return !j.metadata || !!j.is_dark;
+  } catch { return false; } // can't tell: do not report it missing
+}
 async function missingOnIA(ids) {
   try {
     const have = new Set();
     for (let i = 0; i < ids.length; i += 40)
       for (const d of await iaFetch(`identifier:(${ids.slice(i, i + 40).map((x) => `"${x}"`).join(' OR ')})`)) have.add(d.identifier);
-    return ids.filter((x) => !have.has(x));
+    const cand = ids.filter((x) => !have.has(x)), gone = [];
+    for (let i = 0; i < cand.length; i += 6) (await Promise.all(cand.slice(i, i + 6).map(async (x) => (await itemGone(x)) && x))).forEach((x) => x && gone.push(x));
+    return gone;
   } catch { return []; }
+}
+
+// Checks run before Preview / Launch / Modernise.
+async function checkBooks(books, originalIds) {
+  const ids = books.map((b) => b.identifier), seen = new Set(), dupes = new Set();
+  ids.forEach((x) => (seen.has(x) ? dupes.add(x) : seen.add(x)));
+  const orig = new Set(originalIds || []);
+  const missing = (await missingOnIA([...seen])).map((id) => ({ identifier: id, title: books.find((b) => b.identifier === id)?.title || '', original: orig.has(id) }));
+  return {
+    total: books.length, missing, duplicates: [...dupes],
+    noTitle: books.filter((b) => !String(b.title || '').trim()).map((b) => b.identifier),
+    noYear: books.filter((b) => !YEAR.test(String(cleanBook(b).level ?? ''))).length,
+  };
 }
 
 // The portal's original items, read from git: the oldest backup-old-design-* branch if there is one, else the fullest
@@ -519,6 +543,7 @@ async function api(req, res, url) {
     if (!p.originalBooks) { const o = await gitOriginal(p); p.originalBooks = o.books; p.originalSource = o.source; save(db); }
     return send(res, 200, { books: p.originalBooks, source: p.originalSource || 'import' });
   }
+  if (name === 'check') return send(res, 200, await checkBooks((b.books || []).filter((x) => x && x.identifier), (db[b.slug] || {}).originalBooks?.map((x) => x.identifier)));
   if (name === 'infer') return send(res, 200, { collection: await inferCollection((b.ids || []).filter((x) => /^[\w.\-]+$/.test(x))) });
   if (name === 'build') { build(db[slug]); return send(res, 200, { preview: `/preview/${slug}/` }); }
   if (name === 'launch') {
@@ -562,4 +587,4 @@ if (require.main === module) {
   }
   server.listen(PORT, HOST, () => console.log(`portal-builder → http://${HOST}:${PORT}`));
 }
-module.exports = { cleanBook, pickCollection, renderList, refreshBooks, DESIGN_VERSION, fromOldSite, build, merge, toBook, server, authorized };
+module.exports = { checkBooks, cleanBook, pickCollection, renderList, refreshBooks, DESIGN_VERSION, fromOldSite, build, merge, toBook, server, authorized };

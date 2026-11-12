@@ -130,6 +130,7 @@
     <div class="bar">
       <button type="button" class="b" id="fetchBtn">Fetch items from IA</button>
       <button type="submit" class="b">Save</button>
+      <button type="button" class="b" id="checkBtn">Check items</button>
       <button type="button" class="b" id="previewBtn">Preview locally</button>
       <button type="button" class="b pri" id="launchBtn">Launch / Push to GitHub</button>
       <button type="button" class="b pri" id="modBtn" hidden>Modernise design &amp; push</button>
@@ -307,11 +308,33 @@ for (const [id, kind, prev] of [['#logo', 'logo', '#logoPrev'], ['#favicon', 'fa
 }
 
 // Open the tab first (a click-initiated window.open is allowed; after an await it is often blocked).
+// Checks before Preview / Launch / Update: items that no longer exist on archive.org, duplicates, missing titles.
+// Returns false if the user stops. Missing items are removed from the portal (they stay in "Revert to original items").
+async function preflight() {
+  log('Checking items against archive.org…');
+  const r = await api('POST', 'check', { slug: cur.slug, books: cur.books });
+  const notes = [];
+  if (r.duplicates.length) notes.push(`${r.duplicates.length} duplicate identifier(s): ${r.duplicates.slice(0, 5).join(', ')}`);
+  if (r.noTitle.length) notes.push(`${r.noTitle.length} item(s) without a title`);
+  if (r.noYear) notes.push(`${r.noYear} item(s) without a year (shown under Unknown)`);
+  if (r.missing.length) {
+    const list = r.missing.slice(0, 8).map((m) => `• ${m.identifier}${m.original ? ' (in the original list)' : ''}`).join('\n') + (r.missing.length > 8 ? `\n… and ${r.missing.length - 8} more` : '');
+    if (!confirm(`${r.missing.length} of ${r.total} items are not on archive.org any more:\n\n${list}\n\nRemove them from the portal and continue?\n(Cancel stops here. "Revert to original items" can bring them back.)`)) { log('Stopped: missing items not resolved.', 'err'); return false; }
+    const gone = new Set(r.missing.map((m) => m.identifier));
+    cur.books = cur.books.filter((b) => !gone.has(b.identifier)); renderRows(); await persist();
+    notes.unshift(`${r.missing.length} missing item(s) removed`);
+  }
+  log(notes.length ? 'Checked: ' + notes.join('; ') : `Checked ${r.total} items: all present on archive.org.`, notes.length ? '' : 'ok');
+  return true;
+}
+$('#checkBtn').onclick = () => busy(async () => { await persist(); await preflight(); });
+
 $('#previewBtn').onclick = () => {
   const w = window.open('', '_blank');
   busy(async () => {
     try {
-      await persist(); const r = await api('POST', 'build/' + cur.slug);
+      await persist(); if (!(await preflight())) { if (w) w.close(); return; }
+      const r = await api('POST', 'build/' + cur.slug);
       const url = location.origin + r.preview;
       if (w) w.location = url;
       $('#previewLink').hidden = false;
@@ -322,7 +345,7 @@ $('#previewBtn').onclick = () => {
 };
 
 $('#launchBtn').onclick = () => busy(async () => {
-  await persist();
+  await persist(); if (!(await preflight())) return;
   if (!confirm(`Go live? This commits and pushes ${cur.owner}/${cur.repo || cur.slug} to GitHub (master + gh-pages).\n\nTip: use "Preview locally" first.`)) return;
   log('Launching…');
   const r = await api('POST', 'launch/' + cur.slug);
@@ -383,7 +406,7 @@ $('#ghImport').onclick = () => busy(async () => {
   $('#ghLog').textContent = r.log.join('\n') + '\n\nImported. Pick a portal on the left, then use "Modernise design & push".';
 });
 $('#modBtn').onclick = () => busy(async () => {
-  await persist();
+  await persist(); if (!(await preflight())) return;
   if (!confirm(`Update the design of ${cur.owner}/${cur.repo}?\n\nThe current design is saved on a backup-old-design-* branch, item details (year, title, author, publisher) are refreshed from archive.org, then the new design is pushed to ${cur.defaultBranch || 'master'} and gh-pages.\n\nTip: use "Preview locally" first.`)) return;
   log('Modernising…');
   const r = await api('POST', 'modernise/' + cur.slug);
