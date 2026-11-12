@@ -39,6 +39,7 @@
     <button id="rand" type="button" class="btn">__T_RANDOM__</button>
   </div>
   <div class="pills" id="pills">__PILLS__</div>
+  <div class="pills" id="vols">__VOLS__</div>
   <div class="pills" id="topics">__TOPICS__</div>
   <p id="count" class="count" aria-live="polite">__COUNT__</p>
 </div>
@@ -63,7 +64,7 @@ __VIEWER__
   var FRAME = __FRAME__, T = __TJSON__;
   var $ = function (s) { return document.querySelector(s); };
   var $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
-  var q = $('#q'), pills = $$('#pills .pill'), tpills = $$('#topics .pill'), year = 'any', topic = 'any', more = $('#more');
+  var q = $('#q'), pills = $$('#pills .pill'), tpills = $$('#topics .pill'), vpills = $$('#vols .pill'), year = 'any', topic = 'any', vol = 'any', more = $('#more');
   var pages = more ? +more.dataset.pages : 1, next = 1, total = parseInt($('#count').textContent, 10) || 0;
   var norm = function (s) { return s.normalize('NFC').toLowerCase(); };
   var cards = function () { return $$('.card'); };
@@ -73,11 +74,8 @@ __VIEWER__
   // Pages 1.. are fragments: merge them under the year/volume heading already on screen.
   function attach(html) {
     var box = document.createElement('div'); box.innerHTML = html;
-    $$('.vol', box).forEach(function (v) {
-      var vs = $$('main .vol'), lv = vs[vs.length - 1];
-      if (lv && lv.dataset.vol === v.dataset.vol) $$('li', v).forEach(function (li) { lv.querySelector('ul').append(li); });
-      else (more || $('#none')).before(v);
-    });
+    var ul = $('main ul.cards');
+    $$('li', box).forEach(function (li) { ul.append(li); });
   }
   function load(n) {
     if (loaded[n]) return Promise.resolve();
@@ -91,29 +89,33 @@ __VIEWER__
   var busy = false;
   function apply() {
     var terms = norm(q.value).split(/\s+/).filter(Boolean), me = ++token;
-    if (year === 'any' && topic === 'any' && !terms.length) {
+    if (year === 'any' && topic === 'any' && vol === 'any' && !terms.length) {
       cards().forEach(function (c) { c.hidden = false; });
-      groups(); $('#count').textContent = total + ' / ' + total + ' ' + T.items; $('#none').hidden = true; watch();
+      $('#count').textContent = total + ' / ' + total + ' ' + T.items; $('#none').hidden = true; watch();
       return;
     }
     getIndex().catch(function () {
       // search.json missing (portal built by an older builder): filter what is on the page by year/text.
-      return cards().map(function (c) { return [idOf(c), c.dataset.year, c.dataset.q || c.textContent.normalize('NFC').toLowerCase(), 0]; });
+      return cards().map(function (c) { return [idOf(c), c.dataset.year, c.dataset.q || c.textContent.normalize('NFC').toLowerCase(), 0, [], c.dataset.vol || '']; });
     }).then(function (idx) {
-      var hit = idx.filter(function (r) { return (year === 'any' || r[1] === year) && (topic === 'any' || (r[4] || []).indexOf(topic) > -1) && terms.every(function (t) { return r[2].indexOf(t) > -1; }); });
+      var hit = idx.filter(function (r) { return (year === 'any' || r[1] === year) && (topic === 'any' || (r[4] || []).indexOf(topic) > -1) && (vol === 'any' || r[5] === vol) && terms.every(function (t) { return r[2].indexOf(t) > -1; }); });
       var need = {}; hit.forEach(function (r) { need[r[3]] = 1; });
       return Promise.all(Object.keys(need).map(load)).then(function () {
         if (me !== token) return;
         var ids = {}; hit.forEach(function (r) { ids[r[0]] = 1; });
         cards().forEach(function (c) { c.hidden = !ids[idOf(c)]; });
-        groups(); $('#count').textContent = hit.length + ' / ' + total + ' ' + T.items; $('#none').hidden = hit.length > 0;
+        $('#count').textContent = hit.length + ' / ' + total + ' ' + T.items; $('#none').hidden = hit.length > 0;
       });
     });
   }
-  function groups() {
-    $$('.vol').forEach(function (g) { g.hidden = !g.querySelector('.card:not([hidden])'); });
-  }
   q.addEventListener('input', apply);
+  vpills.forEach(function (p) {
+    p.addEventListener('click', function () {
+      vol = p.dataset.vol;
+      vpills.forEach(function (x) { x.setAttribute('aria-pressed', x === p ? 'true' : 'false'); });
+      apply();
+    });
+  });
   tpills.forEach(function (p) {
     p.addEventListener('click', function () {
       topic = p.dataset.topic;
@@ -141,7 +143,7 @@ __VIEWER__
 
   // Auto-load the next page when the end of the list nears (only while nothing is filtered).
   var io = more && 'IntersectionObserver' in window ? new IntersectionObserver(function (e) {
-    if (e[0].isIntersecting && year === 'any' && topic === 'any' && !q.value.trim()) loadNext().then(watch);
+    if (e[0].isIntersecting && year === 'any' && topic === 'any' && vol === 'any' && !q.value.trim()) loadNext().then(watch);
   }, { rootMargin: '800px' }) : null;
   function watch() { if (io && more && more.isConnected) { io.unobserve(more); io.observe(more); } }
   if (io) watch(); else if (more) { while (next < pages) loadNext(); } // no IntersectionObserver: load everything
@@ -174,7 +176,7 @@ __VIEWER__
     });
     var step = function (d) {
       var l = items(), n = l[cur + d];
-      if (n) show(n); else if (d > 0 && next < pages && year === 'any' && topic === 'any' && !q.value.trim()) loadNext().then(function () { var m = items()[cur + d]; if (m) show(m); });
+      if (n) show(n); else if (d > 0 && next < pages && year === 'any' && topic === 'any' && vol === 'any' && !q.value.trim()) loadNext().then(function () { var m = items()[cur + d]; if (m) show(m); });
     };
     $('#vprev').addEventListener('click', function () { step(-1); });
     $('#vnext').addEventListener('click', function () { step(1); });

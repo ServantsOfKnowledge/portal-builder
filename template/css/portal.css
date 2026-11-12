@@ -34,12 +34,11 @@ h1 { font-size: 1.3rem; line-height: 1.3; margin: 0; font-weight: 700; text-alig
 .pill[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: #fff; }
 .note { margin: 6px 0 0; color: var(--mute); font-size: .78rem; line-height: 1.45; text-align: left; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; cursor: pointer; }
 .note.open { display: block; }
-#topics .pill { font-size: .8rem; padding: 2px 10px; }
-#topics:empty { display: none; }
+#topics .pill, #vols .pill { font-size: .8rem; padding: 2px 10px; }
+#topics:empty, #vols:empty { display: none; }
 .count { margin: 4px 0 0; font-size: .8rem; color: var(--mute); }
 
 main { max-width: 1180px; margin: 0 auto; padding: 0 20px 40px; outline: none; }
-.vol > h2 { font-size: 1rem; margin: 26px 0 0; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
 .cards { list-style: none; margin: 18px 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 28px 22px; justify-content: center; }
 .card { min-width: 0; padding: 4px; }
 .card.hit { outline: 2px solid var(--ink); outline-offset: 4px; border-radius: 4px; }

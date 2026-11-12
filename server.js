@@ -160,10 +160,10 @@ function validate(p) {
 const safeUrl = (u) => (/^https?:\/\//.test(u || '') ? esc(u) : '');
 
 const UI = {
-  en: { SEARCH: 'Search title, author, year…', SEARCHLABEL: 'Search', ALL: 'All', TOPICS: 'Topics', ALLTOPICS: 'All topics', RANDOM: 'Random issue', SKIP: 'Skip to the list',
+  en: { SEARCH: 'Search title, author, year…', SEARCHLABEL: 'Search', ALL: 'All', TOPICS: 'Topics', ALLTOPICS: 'All topics', ALLVOLS: 'All volumes', RANDOM: 'Random issue', SKIP: 'Skip to the list',
     ABOUT: 'About this collection', NONE: 'Nothing matches your search.', PREV: 'Previous', NEXT: 'Next', CLOSE: 'Close',
     NEWTAB: 'Open in new tab', ITEMS: 'items', PAGES: 'pages', DOWNLOAD: 'Download', VOL: 'Vol.', ISSUE: 'No.', UNKNOWN: 'Year unknown', LICENSE: 'Licence' },
-  kn: { SEARCH: 'ಶೀರ್ಷಿಕೆ, ಲೇಖಕ, ವರ್ಷ ಹುಡುಕಿ…', SEARCHLABEL: 'ಹುಡುಕಿ', ALL: 'ಎಲ್ಲಾ', TOPICS: 'ವಿಷಯಗಳು', ALLTOPICS: 'ಎಲ್ಲಾ ವಿಷಯಗಳು', RANDOM: 'ಯಾದೃಚ್ಛಿಕ ಸಂಚಿಕೆ', SKIP: 'ಪಟ್ಟಿಗೆ ಹೋಗಿ',
+  kn: { SEARCH: 'ಶೀರ್ಷಿಕೆ, ಲೇಖಕ, ವರ್ಷ ಹುಡುಕಿ…', SEARCHLABEL: 'ಹುಡುಕಿ', ALL: 'ಎಲ್ಲಾ', TOPICS: 'ವಿಷಯಗಳು', ALLTOPICS: 'ಎಲ್ಲಾ ವಿಷಯಗಳು', ALLVOLS: 'ಎಲ್ಲಾ ಸಂಪುಟಗಳು', RANDOM: 'ಯಾದೃಚ್ಛಿಕ ಸಂಚಿಕೆ', SKIP: 'ಪಟ್ಟಿಗೆ ಹೋಗಿ',
     ABOUT: 'ಈ ಸಂಗ್ರಹದ ಬಗ್ಗೆ', NONE: 'ಹುಡುಕಾಟಕ್ಕೆ ಹೊಂದುವ ಸಂಚಿಕೆಗಳಿಲ್ಲ.', PREV: 'ಹಿಂದಿನದು', NEXT: 'ಮುಂದಿನದು', CLOSE: 'ಮುಚ್ಚಿ',
     NEWTAB: 'ಹೊಸ ಟ್ಯಾಬ್‌ನಲ್ಲಿ ತೆರೆಯಿರಿ', ITEMS: 'ಸಂಚಿಕೆಗಳು', PAGES: 'ಪುಟಗಳು', DOWNLOAD: 'ಡೌನ್‌ಲೋಡ್', VOL: 'ಸಂಪುಟ', ISSUE: 'ಸಂಚಿಕೆ', UNKNOWN: 'ವರ್ಷ ತಿಳಿದಿಲ್ಲ', LICENSE: 'ಪರವಾನಗಿ' },
 };
@@ -188,15 +188,16 @@ const qOf = (b) => [b.title, b.author, b.publisher, b.tags, b.level, volOf(b), i
 // Bump when the portal template gains something worth rolling out to existing portals.
 // 1 = the original design (carries no marker), 2 = centred white design, SOK credit, paged loading, search index,
 // 3 = one flat list (no per-year sections), comma-separated subject tags, 4 = logo left with the title centred,
-// 5 = subject topic filters, each item's own IA description on its card.
-const DESIGN_VERSION = 5;
+// 5 = subject topic filters, each item's own IA description on its card,
+// 6 = volumes as a filter (All shows every item in one list).
+const DESIGN_VERSION = 6;
 const PAGE = 30; // cards per page; later pages load as the reader scrolls
 function cardHtml(b, h, ui, read) {
   const vol = volOf(b), iss = issOf(b), id = esc(b.identifier);
   const author = b.author ? (safeUrl(b.authorUrl) ? `<a href="${safeUrl(b.authorUrl)}" target="_blank" rel="noopener">${esc(b.author)}</a>` : esc(b.author)) : '';
   const facts = [iss && `${ui.ISSUE} ${esc(iss)}`, b.pages && `${esc(b.pages)} ${ui.PAGES}`].filter(Boolean).join(' · ');
   const open = (cls, label) => `<a class="open ${cls}" data-id="${id}" data-title="${esc(b.title)}" href="${esc(b.url)}" target="_blank" rel="noopener">${label}</a>`;
-  return `<li class="card" data-id="${id}" data-year="${esc(yearOf(b) || 'unknown')}">
+  return `<li class="card" data-id="${id}" data-year="${esc(yearOf(b) || 'unknown')}" data-vol="${esc(vol)}">
 <a class="cover open" data-id="${id}" data-title="${esc(b.title)}" href="${esc(b.url)}" target="_blank" rel="noopener" tabindex="-1" aria-hidden="true"><img src="${esc(b.cover)}" alt="" loading="lazy" decoding="async" width="300" height="400"></a>
 <${h}>${open('t', esc(b.title))}</${h}>
 ${author ? `<p class="meta">${author}</p>` : ''}${facts ? `<p class="meta">${facts}</p>` : ''}${b.note ? `<p class="note" tabindex="0" role="button" aria-expanded="false">${esc(b.note)}</p>` : ''}
@@ -206,18 +207,15 @@ ${author ? `<p class="meta">${author}</p>` : ''}${facts ? `<p class="meta">${fac
 
 // Whole list is rendered at build time: crawlers and no-JS readers get real content; JS only filters it.
 function renderList(books, ui, read) {
-  let out = '', v;
-  const closeVol = () => { if (v !== undefined) out += '</ul></div>'; v = undefined; };
-  for (const b of sortBooks(books)) {
-    const vol = volOf(b);
-    if (vol !== v) {
-      closeVol();
-      out += `<div class="vol" data-vol="${esc(vol)}">${vol ? `<h2>${ui.VOL} ${esc(vol)}</h2>` : ''}<ul class="cards">`; v = vol;
-    }
-    out += cardHtml(b, vol ? 'h3' : 'h2', ui, read);
-  }
-  closeVol();
-  return out;
+  return `<ul class="cards">${sortBooks(books).map((b) => cardHtml(b, 'h2', ui, read)).join('')}</ul>`;
+}
+
+// Volumes as their own filter (numeric order); only when there are at least two.
+function volumesHtml(books, ui) {
+  const vols = [...new Set(books.map(volOf).filter(Boolean))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  if (vols.length < 2) return '';
+  const pill = (val, label, on) => `<button type="button" class="pill" data-vol="${esc(val)}" aria-pressed="${on}">${esc(label)}</button>`;
+  return `<span class="sr">${esc(ui.VOL)}</span>` + pill('any', ui.ALLVOLS, true) + vols.map((v) => pill(v, `${ui.VOL} ${v}`, false)).join('');
 }
 
 // Subjects as independent filters: only ones that actually split the list (2+ items, not every item), most common first.
@@ -282,7 +280,7 @@ function build(p) {
     LANG: esc(p.lang || 'kn'), TITLE: esc(p.title), TAGLINE: esc(p.tagline), DESC: esc(p.description),
     AUTHOR: esc(p.orgName), SITE: site, OGIMG: esc(sorted[0]?.cover || ''), GA: GA(p.gaId) || '',
     PARTNERS: partnersHtml(p.partners), CREDIT: creditHtml(p),
-    LIST: renderList(sorted.slice(0, PAGE), ui, read) + (sorted.length > PAGE ? '<div id="more" data-pages="' + Math.ceil(sorted.length / PAGE) + '"></div>' : ''), PILLS: pillsHtml(p.books, ui), TOPICS: topicsHtml(p.books, ui), COUNT: `${p.books.length} / ${p.books.length} ${esc(ui.ITEMS)}`,
+    LIST: renderList(sorted.slice(0, PAGE), ui, read) + (sorted.length > PAGE ? '<div id="more" data-pages="' + Math.ceil(sorted.length / PAGE) + '"></div>' : ''), PILLS: pillsHtml(p.books, ui), TOPICS: topicsHtml(p.books, ui), VOLS: volumesHtml(p.books, ui), COUNT: `${p.books.length} / ${p.books.length} ${esc(ui.ITEMS)}`,
     LDJSON: jsonLd(p, site, sorted), FRAME: String(p.openMode === 'frame'), TJSON: JSON.stringify({ items: ui.ITEMS }).replace(/</g, '\\u003c'),
     SOK: `${fs.existsSync(path.join(TPL, 'img', 'sok-logo.png')) ? '<img src="./img/sok-logo.png" alt="">' : ''}<span>A <a href="https://archive.org/details/ServantsOfKnowledge" target="_blank" rel="noopener">Servants of Knowledge</a> Initiative</span>`,
     DESIGN: DESIGN_VERSION, READ: esc(read), ...Object.fromEntries(Object.entries(ui).map(([k, t]) => ['T_' + k, esc(t)])),
@@ -294,7 +292,7 @@ function build(p) {
   fs.rmSync(path.join(dir, 'p'), { recursive: true, force: true });
   if (sorted.length > PAGE) fs.mkdirSync(path.join(dir, 'p'));
   for (let i = PAGE, n = 1; i < sorted.length; i += PAGE, n++) fs.writeFileSync(path.join(dir, 'p', n + '.html'), renderList(sorted.slice(i, i + PAGE), ui, read));
-  fs.writeFileSync(path.join(dir, 'search.json'), JSON.stringify(sorted.map((b, i) => [b.identifier, yearOf(b) || 'unknown', qOf(b), Math.floor(i / PAGE), tagsOf(b)])));
+  fs.writeFileSync(path.join(dir, 'search.json'), JSON.stringify(sorted.map((b, i) => [b.identifier, yearOf(b) || 'unknown', qOf(b), Math.floor(i / PAGE), tagsOf(b), volOf(b)])));
   fs.writeFileSync(path.join(dir, 'issues.json'), JSON.stringify({ books: p.books }, null, 2));
   fs.writeFileSync(path.join(dir, 'sitemap.xml'), `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>${site}/</loc><lastmod>${new Date().toISOString().slice(0, 10)}</lastmod></url></urlset>\n`);
   fs.writeFileSync(path.join(dir, 'robots.txt'), `User-agent: *\nAllow: /\nSitemap: ${site}/sitemap.xml\n`);
