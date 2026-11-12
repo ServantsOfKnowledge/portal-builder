@@ -57,6 +57,15 @@
 <main><div class="wrap">
   <div id="empty">Pick a portal on the left, or create a new one.</div>
   <form id="form" hidden>
+    <fieldset><legend>Start here</legend><div class="grid">
+      <label>Project name (becomes the title)<input name="projectName" placeholder="e.g. ಜನಪದ ವಿಚಾರ" autocomplete="off"></label>
+      <label>Identifier prefix on Internet Archive<input name="prefix" placeholder="e.g. jst.janapadavichara" autocomplete="off" style="font-family:monospace"></label>
+      <label>Collaborating author / family / organization<input name="collaborator" placeholder="e.g. Janapada Seva Trust" autocomplete="off"></label>
+      <label>Digitised under (project / programme)<input name="program" placeholder="e.g. Servants of Knowledge" autocomplete="off"></label>
+      <label class="wide">About the collection (optional, goes before the collaboration line)<textarea name="about" placeholder="One or two sentences about the publication."></textarea></label>
+    </div>
+    <p class="hint">These fill the title, tagline, description, organization name, query and slug below. Edit any of those directly and it is left alone. <button type="button" class="b" id="regenBtn" style="padding:2px 10px;margin-left:6px">Regenerate</button></p></fieldset>
+
     <fieldset><legend>Portal</legend><div class="grid">
       <label class="wide">Title<input name="title" required></label>
       <label class="wide">Tagline (shown under the title)<input name="tagline"></label>
@@ -74,8 +83,9 @@
     </div></fieldset>
 
     <fieldset><legend>Items from Internet Archive</legend><div class="grid">
-      <label class="wide">Query<input name="query" placeholder="collection:ServantsOfKnowledge AND identifier:jst.*" style="font-family:monospace"></label>
-      <label class="wide">Common item description (blank = each item's own IA description)<textarea name="info"></textarea></label>
+      <label>Internet Archive collection<input name="collection" placeholder="ServantsOfKnowledge"></label>
+      <label class="wide">Query (built from the prefix; edit to override)<input name="query" placeholder="collection:ServantsOfKnowledge AND identifier:jst.*" style="font-family:monospace"></label>
+      <label class="wide">Common item description (kept in issues.json; blank = each item's own IA description)<textarea name="info"></textarea></label>
     </div></fieldset>
 
     <fieldset><legend>GitHub &amp; domain</legend><div class="grid">
@@ -132,19 +142,43 @@ const api = async (method, path, body) => {
 };
 const log = (t, cls = '') => { $('#log').innerHTML = `<span class="${cls}">${t.replace(/</g, '&lt;')}</span>`; };
 
-// Sample text taken from the janapadavichara portal; overwrite per portal.
-const SAMPLE = {
-  "title": "ಜನಪದ ವಿಚಾರ ಡಿಜಿಟಲ್ ಸಂಚಿಕೆಗಳು",
-  "tagline": "ಜನಪದ ಕಲೆ ಮತ್ತು ಸಂಸ್ಕೃತಿಯ ಕನ್ನಡ ಮಾಸಪತ್ರಿಕೆ · ಈ ಸಂಚಿಕೆಗಳ ಡಿಜಿಟಲೀಕರಣ ಜನಪದ ಸೇವಾ ಟ್ರಸ್ಟ್ ಮತ್ತು #ServantsOfKnowledge ಸಹಯೋಗದಲ್ಲಿ ನಡೆದಿದೆ",
-  "description": "ಜನಪದ ಸೇವಾ ಟ್ರಸ್ಟ್ ಪ್ರಕಟಿಸುವ ಜನಪದ ವಿಚಾರ ಮಾಸಪತ್ರಿಕೆಯ ಡಿಜಿಟಲ್ ಸಂಚಯ. ಸುರೇಂದ್ರ ಕೌಲಗಿ ಅವರ ನೇತೃತ್ವದಲ್ಲಿ ಹೊರಬಂದ ಈ ಪತ್ರಿಕೆ ಜನಪದ ಕಲೆ, ಜೀವನಶೈಲಿ ಮತ್ತು ಸಾಂಸ್ಕೃತಿಕ ಪರಂಪರೆ ಕುರಿತ ಲೇಖನಗಳಿಗೆ ಪ್ರಸಿದ್ಧ. ಈ ಸಂಚಿಕೆಗಳ ಡಿಜಿಟಲೀಕರಣ ಜನಪದ ಸೇವಾ ಟ್ರಸ್ಟ್ (ಪ್ರಮುಖ ಸಹಯೋಗಿ) ಮತ್ತು Servants of Knowledge (#ServantsOfKnowledge) ಸಹಯೋಗದಲ್ಲಿ ನಡೆದಿದೆ.",
-  "orgName": "Janapada Seva Trust",
-  "orgUrl": "",
-  "query": "collection:ServantsOfKnowledge AND identifier:jst.janapadavichara*",
-  "info": "ಜನಪದ ಸೇವಾ ಟ್ರಸ್ಟ್ ಪ್ರಕಟಿಸುವ ಜನಪದ ವಿಚಾರ ಮಾಸಪತ್ರಿಕೆಯ ಡಿಜಿಟಲ್ ಸಂಚಯ. ಸುರೇಂದ್ರ ಕೌಲಗಿ ಅವರ ನೇತೃತ್ವದಲ್ಲಿ ಹೊರಬಂದ ಈ ಪತ್ರಿಕೆ ಜನಪದ ಕಲೆ, ಜೀವನಶೈಲಿ ಮತ್ತು ಸಾಂಸ್ಕೃತಿಕ ಪರಂಪರೆ ಕುರಿತ ಲೇಖನಗಳಿಗೆ ಪ್ರಸಿದ್ಧ. ಈ ಸಂಚಿಕೆಗಳ ಡಿಜಿಟಲೀಕರಣ ಜನಪದ ಸೇವಾ ಟ್ರಸ್ಟ್ (ಪ್ರಮುಖ ಸಹಯೋಗಿ) ಮತ್ತು Servants of Knowledge (#ServantsOfKnowledge) ಸಹಯೋಗದಲ್ಲಿ ನಡೆದಿದೆ.",
-  "partners": "ಸಂಚಯ | https://sanchaya.org\nಸಂಚಿ ಫೌಂಡೇಶನ್ | https://sanchifoundation.org | https://sanchifoundation.org/storage/2021/03/sanchi-logo-transparent.png",
-  "footer": "This portal is built in collaboration with Servants of Knowledge and Sanchaya."
+// Org-wide defaults. Project-specific text is generated from the "Start here" fields.
+const DEFAULTS = {
+  owner: 'sanchaya', domain: 'sanchaya.net', lang: 'kn', readLabel: 'ಓದಿರಿ', gaId: 'G-RRZLCXBXJZ', openMode: 'tab',
+  program: 'Servants of Knowledge', collection: 'ServantsOfKnowledge',
+  partners: 'ಸಂಚಯ | https://sanchaya.org\nಸಂಚಿ ಫೌಂಡೇಶನ್ | https://sanchifoundation.org | https://sanchifoundation.org/storage/2021/03/sanchi-logo-transparent.png',
+  footer: 'This portal is built in collaboration with Servants of Knowledge and Sanchaya.', books: [], dirty: {},
 };
-const DEFAULTS = { ...SAMPLE, owner: 'sanchaya', domain: 'sanchaya.net', lang: 'kn', readLabel: 'ಓದಿರಿ', gaId: 'G-RRZLCXBXJZ', openMode: 'tab', books: [] };
+
+// Fields generated from the Start-here inputs, until the user edits them by hand.
+const GEN = ['title', 'tagline', 'description', 'orgName', 'query', 'info', 'slug'];
+const tagOf = (s) => '#' + s.replace(/[^\p{L}\p{N}]+/gu, ' ').trim().split(' ').filter(Boolean).map((w) => w[0].toUpperCase() + w.slice(1)).join('');
+const slugOf = (prefix) => (prefix.split('.').pop() || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+
+function collabSentence(f) {
+  const kn = (f.lang || '').startsWith('kn');
+  const who = [
+    f.collaborator && (kn ? `${f.collaborator} (ಪ್ರಮುಖ ಸಹಯೋಗಿ)` : `${f.collaborator} (main collaborator)`),
+    f.program && `${f.program} (${tagOf(f.program)})`,
+  ].filter(Boolean);
+  if (!who.length) return '';
+  return kn ? `ಈ ಸಂಗ್ರಹದ ಡಿಜಿಟಲೀಕರಣ ${who.join(' ಮತ್ತು ')} ಸಹಯೋಗದಲ್ಲಿ ನಡೆದಿದೆ.` : `This collection was digitised in collaboration with ${who.join(' and ')}.`;
+}
+
+function generate() {
+  const f = readForm(), sent = collabSentence(f);
+  const description = [f.about, sent].filter(Boolean).join(' ');
+  const g = {
+    title: f.projectName, slug: slugOf(f.prefix || ''), orgName: f.collaborator, tagline: sent.replace(/\.$/, ''), description, info: description,
+    query: f.prefix ? `collection:${f.collection || 'ServantsOfKnowledge'} AND identifier:${f.prefix}*` : '',
+  };
+  cur.dirty = cur.dirty || {};
+  for (const k of GEN) {
+    if (cur.dirty[k] || (k === 'slug' && projects[cur.slug])) continue; // hand-edited, or slug already in use
+    form[k].value = g[k]; cur[k] = g[k];
+  }
+  renderRows();
+}
 
 function renderList() {
   $('#list').innerHTML = '';
@@ -167,6 +201,7 @@ function showAsset(img, kind) {
 function openProject(p) {
   $('#previewLink').hidden = true;
   cur = JSON.parse(JSON.stringify(p));
+  cur.dirty = cur.dirty || (projects[cur.slug] && !cur.projectName ? Object.fromEntries(GEN.map((k) => [k, true])) : {});
   $('#empty').hidden = true; form.hidden = false;
   for (const el of form.elements) if (el.name) el.value = cur[el.name] ?? '';
   form.slug.readOnly = !!projects[cur.slug];
@@ -214,6 +249,9 @@ async function busy(fn) {
 
 $('#newBtn').onclick = () => openProject({ ...DEFAULTS, books: [] });
 form.onsubmit = (e) => { e.preventDefault(); busy(async () => { await persist(); log('Saved.', 'ok'); }); };
+for (const n of ['projectName', 'prefix', 'collaborator', 'program', 'about', 'collection', 'lang']) form[n].addEventListener('input', generate);
+for (const k of GEN) form[k].addEventListener('input', (e) => { if (e.isTrusted) cur.dirty[k] = true; });
+$('#regenBtn').onclick = () => { cur.dirty = {}; generate(); log('Regenerated from the Start-here fields.', 'ok'); };
 for (const n of ['slug', 'sub', 'domain', 'owner', 'repo']) form[n].addEventListener('input', () => { readForm(); renderRows(); });
 
 $('#fetchBtn').onclick = () => busy(async () => {
@@ -257,7 +295,7 @@ $('#launchBtn').onclick = () => busy(async () => {
   log(r.log.join('\n'), r.ok ? 'ok' : 'err');
 });
 
-$('#dupBtn').onclick = () => openProject({ ...readForm(), slug: '', sub: '', repo: '', books: [] });
+$('#dupBtn').onclick = () => openProject({ ...readForm(), slug: '', sub: '', repo: '', books: [], projectName: '', prefix: '', title: '', query: '', dirty: {} });
 $('#delBtn').onclick = () => busy(async () => {
   if (!projects[cur.slug] || !confirm('Remove from this list? (The GitHub repo and local workspace folder are untouched.)')) return;
   await api('DELETE', 'projects/' + cur.slug); delete projects[cur.slug];
