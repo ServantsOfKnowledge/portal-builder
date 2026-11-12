@@ -74,7 +74,7 @@
 
     <fieldset><legend>GitHub &amp; domain</legend><div class="grid">
       <label>GitHub owner (org or user)<input name="owner" required></label>
-      <label>New repo name<input name="repo" placeholder="defaults to the slug"></label>
+      <label>New repo name<input name="repo" placeholder="defaults to the slug (e.g. janapadavichara)"></label>
       <label>Slug (local folder id)<input name="slug" required pattern="[a-z0-9][a-z0-9\-]*"></label>
       <label>Subdomain<input name="sub" placeholder="defaults to the slug"></label>
       <label>Base domain<input name="domain" required></label>
@@ -125,7 +125,19 @@ const api = async (method, path, body) => {
 };
 const log = (t, cls = '') => { $('#log').innerHTML = `<span class="${cls}">${t.replace(/</g, '&lt;')}</span>`; };
 
-const DEFAULTS = { owner: 'sanchaya', domain: 'sanchaya.net', lang: 'kn', readLabel: 'ಓದಿರಿ', gaId: 'G-RRZLCXBXJZ', openMode: 'tab', orgName: '', books: [] };
+// Sample text taken from the janapadavichara portal; overwrite per portal.
+const SAMPLE = {
+  "title": "ಜನಪದ ವಿಚಾರ ಡಿಜಿಟಲ್ ಸಂಚಿಕೆಗಳು",
+  "tagline": "ಜನಪದ ಕಲೆ ಮತ್ತು ಸಂಸ್ಕೃತಿಯ ಕನ್ನಡ ಮಾಸಪತ್ರಿಕೆ · ಈ ಸಂಚಿಕೆಗಳ ಡಿಜಿಟಲೀಕರಣ ಜನಪದ ಸೇವಾ ಟ್ರಸ್ಟ್ ಮತ್ತು #ServantsOfKnowledge ಸಹಯೋಗದಲ್ಲಿ ನಡೆದಿದೆ",
+  "description": "ಜನಪದ ಸೇವಾ ಟ್ರಸ್ಟ್ ಪ್ರಕಟಿಸುವ ಜನಪದ ವಿಚಾರ ಮಾಸಪತ್ರಿಕೆಯ ಡಿಜಿಟಲ್ ಸಂಚಯ. ಸುರೇಂದ್ರ ಕೌಲಗಿ ಅವರ ನೇತೃತ್ವದಲ್ಲಿ ಹೊರಬಂದ ಈ ಪತ್ರಿಕೆ ಜನಪದ ಕಲೆ, ಜೀವನಶೈಲಿ ಮತ್ತು ಸಾಂಸ್ಕೃತಿಕ ಪರಂಪರೆ ಕುರಿತ ಲೇಖನಗಳಿಗೆ ಪ್ರಸಿದ್ಧ. ಈ ಸಂಚಿಕೆಗಳ ಡಿಜಿಟಲೀಕರಣ ಜನಪದ ಸೇವಾ ಟ್ರಸ್ಟ್ (ಪ್ರಮುಖ ಸಹಯೋಗಿ) ಮತ್ತು Servants of Knowledge (#ServantsOfKnowledge) ಸಹಯೋಗದಲ್ಲಿ ನಡೆದಿದೆ.",
+  "orgName": "Janapada Seva Trust",
+  "orgUrl": "",
+  "query": "collection:ServantsOfKnowledge AND identifier:jst.janapadavichara*",
+  "info": "ಜನಪದ ಸೇವಾ ಟ್ರಸ್ಟ್ ಪ್ರಕಟಿಸುವ ಜನಪದ ವಿಚಾರ ಮಾಸಪತ್ರಿಕೆಯ ಡಿಜಿಟಲ್ ಸಂಚಯ. ಸುರೇಂದ್ರ ಕೌಲಗಿ ಅವರ ನೇತೃತ್ವದಲ್ಲಿ ಹೊರಬಂದ ಈ ಪತ್ರಿಕೆ ಜನಪದ ಕಲೆ, ಜೀವನಶೈಲಿ ಮತ್ತು ಸಾಂಸ್ಕೃತಿಕ ಪರಂಪರೆ ಕುರಿತ ಲೇಖನಗಳಿಗೆ ಪ್ರಸಿದ್ಧ. ಈ ಸಂಚಿಕೆಗಳ ಡಿಜಿಟಲೀಕರಣ ಜನಪದ ಸೇವಾ ಟ್ರಸ್ಟ್ (ಪ್ರಮುಖ ಸಹಯೋಗಿ) ಮತ್ತು Servants of Knowledge (#ServantsOfKnowledge) ಸಹಯೋಗದಲ್ಲಿ ನಡೆದಿದೆ.",
+  "partners": "ಸಂಚಯ | https://sanchaya.org\nಸಂಚಿ ಫೌಂಡೇಶನ್ | https://sanchifoundation.org | https://sanchifoundation.org/storage/2021/03/sanchi-logo-transparent.png",
+  "footer": "This portal is built in collaboration with Servants of Knowledge and Sanchaya."
+};
+const DEFAULTS = { ...SAMPLE, owner: 'sanchaya', domain: 'sanchaya.net', lang: 'kn', readLabel: 'ಓದಿರಿ', gaId: 'G-RRZLCXBXJZ', openMode: 'tab', books: [] };
 
 function renderList() {
   $('#list').innerHTML = '';
