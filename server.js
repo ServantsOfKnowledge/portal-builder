@@ -30,7 +30,7 @@ const arr = (v) => [].concat(v ?? []);
 const strip = (s) => s.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
 
 // ---- archive.org -----------------------------------------------------------
-async function iaFetch(q) {
+async function iaFetch(q, max = Infinity) {
   const docs = [];
   for (let page = 1; ; page++) {
     const u = new URL('https://archive.org/advancedsearch.php');
@@ -41,6 +41,7 @@ async function iaFetch(q) {
     const r = await fetch(u);
     if (!r.ok) throw new Error('archive.org returned ' + r.status);
     const { response } = await r.json();
+    if (response.numFound > max) throw new Error(`The query matches ${response.numFound} items (limit ${max}). Narrow the identifier prefix.`);
     docs.push(...response.docs);
     if (!response.docs.length || docs.length >= response.numFound) return docs;
   }
@@ -58,6 +59,16 @@ async function inferCollection(ids) {
   const sample = ids.slice(0, 40);
   const docs = await iaFetch(`identifier:(${sample.map((x) => `"${x}"`).join(' OR ')})`);
   return pickCollection(docs);
+}
+
+// Learn the identifier pattern from items we already have, so a query never has to pull a whole collection.
+// 'jst.janapadavicharas0000sure_1990_07_v11_i1' -> stem 'jst.janapadavicharas'. Null if the items share no small set of stems.
+const stemOf = (id) => { const m = /^(.{4,}?[A-Za-z])\d/.exec(id); return m ? m[1] : id.replace(/[\d_.\-]+$/, '') || id; };
+function buildQuery(ids, collection) {
+  const stems = [...new Set(ids.map(stemOf))], keep = stems.filter((s) => !stems.some((o) => o !== s && s.startsWith(o)));
+  if (!keep.length || keep.length > 8) return null;
+  const idPart = keep.length === 1 ? `identifier:${keep[0]}*` : `identifier:(${keep.map((s) => s + '*').join(' OR ')})`;
+  return { prefix: keep.length === 1 ? keep[0] : '', query: `${collection ? `collection:${collection} AND ` : ''}${idPart}` };
 }
 
 // IA packs subjects as 'a; b; c'. Portals filter on comma-separated tags, so split on ; and , and rejoin with commas.
@@ -503,7 +514,7 @@ async function api(req, res, url) {
   if (name === 'projects' && req.method === 'DELETE') { delete db[slug]; save(db); return send(res, 200, { ok: true }); }
   if (name === 'fetch') {
     if (!b.query) throw new Error('enter an Internet Archive query');
-    const fresh = (await iaFetch(b.query)).map((d) => toBook(d, b.info));
+    const fresh = (await iaFetch(b.query, 1500)).map((d) => toBook(d, b.info));
     const r = merge(b.books || [], fresh);
     // Original items always stay. Items added by earlier fetches that are gone from archive.org are dropped.
     const p = b.slug && db[b.slug];
@@ -544,7 +555,19 @@ async function api(req, res, url) {
     return send(res, 200, { books: p.originalBooks, source: p.originalSource || 'import' });
   }
   if (name === 'check') return send(res, 200, await checkBooks((b.books || []).filter((x) => x && x.identifier), (db[b.slug] || {}).originalBooks?.map((x) => x.identifier)));
-  if (name === 'infer') return send(res, 200, { collection: await inferCollection((b.ids || []).filter((x) => /^[\w.\-]+$/.test(x))) });
+  if (name === 'query') { // build the IA query from the items this portal already has (current, original, local repo copy, GitHub)
+    const p = db[slug]; if (!p) throw new Error('save the portal first');
+    const ids = new Set(), src = [];
+    const add = (list, label) => { const n = ids.size; list.forEach((x) => x && /^[\w.\-]+$/.test(x.identifier || '') && ids.add(x.identifier)); if (ids.size > n) src.push(label); };
+    add(b.books || [], 'current items'); add(p.originalBooks || [], 'original items');
+    try { add(booksOf(JSON.parse(fs.readFileSync(path.join(WS, p.slug, 'issues.json'), 'utf8'))), 'local repo copy'); } catch { /* none */ }
+    if (!ids.size) { try { add((await gitOriginal(p)).books, 'GitHub history'); } catch { /* none */ } }
+    if (!ids.size) return send(res, 200, { error: 'No existing items found to learn the pattern from. Type the identifier prefix under "Start here".' });
+    const list = [...ids], collection = (await inferCollection(list).catch(() => '')) || p.collection || 'ServantsOfKnowledge';
+    const q = buildQuery(list, collection);
+    if (!q) return send(res, 200, { error: `These ${list.length} identifiers share no common prefix pattern. Type the prefix under "Start here" (the whole collection is not pulled).` });
+    return send(res, 200, { ...q, collection, count: list.length, source: src.join(' + ') });
+  }
   if (name === 'build') { build(db[slug]); return send(res, 200, { preview: `/preview/${slug}/` }); }
   if (name === 'launch') {
     const log = [];
@@ -587,4 +610,4 @@ if (require.main === module) {
   }
   server.listen(PORT, HOST, () => console.log(`portal-builder → http://${HOST}:${PORT}`));
 }
-module.exports = { checkBooks, cleanBook, pickCollection, renderList, refreshBooks, DESIGN_VERSION, fromOldSite, build, merge, toBook, server, authorized };
+module.exports = { buildQuery, checkBooks, cleanBook, pickCollection, renderList, refreshBooks, DESIGN_VERSION, fromOldSite, build, merge, toBook, server, authorized };

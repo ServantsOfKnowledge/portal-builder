@@ -83,4 +83,10 @@ assert(require('./server.js').pickCollection([{ collection: ['JaiGyan', 'Servant
   const a = cleanBook({ identifier: 'jst.x0000_1991_03_v1', level: 'ಕನ್ನಡ', tags: 't1' }), b = cleanBook({ identifier: 'nodate', level: 'Kannada', tags: '' }), c = cleanBook({ identifier: 'z', level: '1985' });
   assert(a.level === 1991 && a.tags === 't1,ಕನ್ನಡ' && b.level === '' && b.tags === 'Kannada' && c.level === 1985);
 }
+{ // query from existing identifiers
+  const { buildQuery } = require('./server.js');
+  assert(buildQuery(['jst.janapadavicharas0000sure_1990_07_v1', 'jst.janapadavicharas0000sure_1991_01_v2'], 'ServantsOfKnowledge').query === 'collection:ServantsOfKnowledge AND identifier:jst.janapadavicharas*');
+  assert(buildQuery(['aaaab0000x', 'bbbbc0000y'], 'C').query === 'collection:C AND identifier:(aaaab* OR bbbbc*)');
+  assert(buildQuery(Array.from({ length: 12 }, (_, i) => 'it' + 'abcdefghijkl'[i] + 'x'.repeat(i + 3) + 'p0'), 'C') === null, 'too scattered: no query rather than the whole collection');
+}
 console.log('ok');
