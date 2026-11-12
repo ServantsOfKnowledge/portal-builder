@@ -78,4 +78,9 @@ assert(!html.includes('class="year"'), 'one flat list, no per-year sections');
 assert(/class="note"[^>]*>desc one/.test(require('./server.js').renderList([{ identifier: 'n1', title: 'T', note: 'desc one' }], { VOL: 'V', ISSUE: 'I', PAGES: 'p', DOWNLOAD: 'd', LICENSE: 'l', UNKNOWN: '?' }, 'Read')), 'item description shown as a note');
 assert(require('./server.js').pickCollection([{ collection: ['opensource', 'ServantsOfKnowledge', 'booksbylanguage_kannada'] }, { collection: 'ServantsOfKnowledge' }, { collection: ['texts', 'Other'] }]) === 'ServantsOfKnowledge');
 assert(require('./server.js').pickCollection([{ collection: ['JaiGyan', 'ServantsOfKnowledge'] }]) === 'ServantsOfKnowledge', 'tie prefers ServantsOfKnowledge');
+{ // a language name in the year slot
+  const { cleanBook } = require('./server.js');
+  const a = cleanBook({ identifier: 'jst.x0000_1991_03_v1', level: 'ಕನ್ನಡ', tags: 't1' }), b = cleanBook({ identifier: 'nodate', level: 'Kannada', tags: '' }), c = cleanBook({ identifier: 'z', level: '1985' });
+  assert(a.level === 1991 && a.tags === 't1,ಕನ್ನಡ' && b.level === '' && b.tags === 'Kannada' && c.level === 1985);
+}
 console.log('ok');

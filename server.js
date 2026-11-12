@@ -62,6 +62,16 @@ async function inferCollection(ids) {
 
 // IA packs subjects as 'a; b; c'. Portals filter on comma-separated tags, so split on ; and , and rejoin with commas.
 const normTags = (v) => [...new Set(arr(v).flatMap((s) => String(s).split(/[;,]/)).map((t) => t.trim()).filter(Boolean))].join(',');
+// A year must be a year. Some items carry a language or series name in `level`: keep that text as a tag and
+// take the year from the identifier (e.g. ..._1990_07_...), or leave it blank (shown as Unknown).
+const YEAR = /^(1[5-9]\d\d|20\d\d)$/;
+const idYear = (id) => (/(?:^|[^0-9])(1[5-9]\d\d|20\d\d)(?:[^0-9]|$)/.exec(id || '') || [])[1] || '';
+function cleanBook(b) {
+  const lv = String(b.level ?? '').trim();
+  if (lv === '') return b;
+  if (YEAR.test(lv)) return typeof b.level === 'number' ? b : { ...b, level: Number(lv) };
+  return { ...b, level: Number(idYear(b.identifier)) || '', tags: normTags([b.tags, lv]) };
+}
 function toBook(d, info) {
   const author = arr(d.creator).join(', ');
   return {
@@ -91,7 +101,7 @@ function refreshBooks(books, fresh) {
     const f = fresh.get(b.identifier);
     if (!f) return b;
     n++;
-    return { ...b, ...Object.fromEntries(REFRESH.filter((k) => f[k] !== '' && f[k] != null).map((k) => [k, f[k]])) };
+    return cleanBook({ ...b, ...Object.fromEntries(REFRESH.filter((k) => f[k] !== '' && f[k] != null).map((k) => [k, f[k]])) });
   });
   return { books: out, n };
 }
@@ -141,7 +151,7 @@ function merge(existing, fresh) {
   const byId = new Map(fresh.map((b) => [b.identifier, b]));
   const have = new Set(existing.map((b) => b.identifier));
   const added = fresh.filter((b) => !have.has(b.identifier));
-  const kept = existing.map((b) => ({ ...byId.get(b.identifier), ...b, tags: normTags(b.tags) }));
+  const kept = existing.map((b) => cleanBook({ ...byId.get(b.identifier), ...b, tags: normTags(b.tags) }));
   return { books: [...kept, ...added].sort((a, b) => a.identifier.localeCompare(b.identifier)), added: added.length };
 }
 
@@ -265,6 +275,7 @@ function creditHtml(p) {
 
 function build(p) {
   validate(p);
+  p = { ...p, books: p.books.map(cleanBook) };
   const dir = path.join(WS, p.slug);
   fs.mkdirSync(dir, { recursive: true });
   for (const d of ['css', 'img']) fs.cpSync(path.join(TPL, d), path.join(dir, d), { recursive: true });
@@ -376,7 +387,7 @@ const slugOfRepo = (n) => n.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^
 // Turn an old portal's files into a project config (best effort; everything stays editable).
 function fromOldSite(owner, repo, f) {
   const j = JSON.parse(f.issues);
-  const books = (Array.isArray(j) ? j : j.books || []).filter((b) => b && b.identifier).map((b) => ({ ...b, tags: normTags(b.tags) }));
+  const books = (Array.isArray(j) ? j : j.books || []).filter((b) => b && b.identifier).map((b) => cleanBook({ ...b, tags: normTags(b.tags) }));
   const m = (re) => (re.exec(f.html || '') || [])[1] || '';
   const host = (f.cname || '').trim().toLowerCase(), [sub, ...rest] = host.split('.');
   const lang = m(/<html[^>]*\blang=["']([\w-]+)/i) || 'kn';
@@ -463,7 +474,7 @@ async function api(req, res, url) {
   const b = body ? JSON.parse(body) : {};
 
   if (name === 'projects' && req.method === 'PUT') {
-    validate(b); db[b.slug] = { ...b, books: b.books || [] }; save(db); return send(res, 200, { ok: true });
+    validate(b); db[b.slug] = { ...b, books: (b.books || []).map(cleanBook) }; save(db); return send(res, 200, { ok: true });
   }
   if (name === 'projects' && req.method === 'DELETE') { delete db[slug]; save(db); return send(res, 200, { ok: true }); }
   if (name === 'fetch') {
@@ -551,4 +562,4 @@ if (require.main === module) {
   }
   server.listen(PORT, HOST, () => console.log(`portal-builder → http://${HOST}:${PORT}`));
 }
-module.exports = { pickCollection, renderList, refreshBooks, DESIGN_VERSION, fromOldSite, build, merge, toBook, server, authorized };
+module.exports = { cleanBook, pickCollection, renderList, refreshBooks, DESIGN_VERSION, fromOldSite, build, merge, toBook, server, authorized };
