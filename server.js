@@ -10,6 +10,18 @@ const DB = path.join(DATA, 'projects.json');
 const GIT_NAME = process.env.GIT_NAME || 'Omshivaprakash';
 const GIT_EMAIL = process.env.GIT_EMAIL || 'omshivaprakash@gmail.com';
 const PORT = +process.env.PORT || 4300;
+const HOST = process.env.HOST || '127.0.0.1';
+const { ADMIN_USER = 'admin', ADMIN_PASSWORD = '' } = process.env;
+
+// Constant-time Basic-auth check; hashing first makes the buffers equal length.
+const sha = (x) => require('crypto').createHash('sha256').update(String(x)).digest();
+const same = (a, b) => require('crypto').timingSafeEqual(sha(a), sha(b));
+function authorized(header, user, pass) {
+  const m = /^Basic (.+)$/.exec(header || '');
+  if (!m) return false;
+  const [u, ...rest] = Buffer.from(m[1], 'base64').toString().split(':');
+  return same(u, user) & same(rest.join(':'), pass) ? true : false;
+}
 
 const load = () => (fs.existsSync(DB) ? JSON.parse(fs.readFileSync(DB, 'utf8')) : {});
 const save = (db) => { fs.mkdirSync(DATA, { recursive: true }); fs.writeFileSync(DB, JSON.stringify(db, null, 2)); };
@@ -205,9 +217,17 @@ async function api(req, res, url) {
 
 const server = http.createServer(async (req, res) => {
   try {
-    // Local-only: blocks DNS rebinding, and the JSON content-type forces a CORS preflight for other sites.
-    if (!/^(localhost|127\.0\.0\.1)(:\d+)?$/.test(req.headers.host || '')) return send(res, 403, 'forbidden', 'text/plain');
     const url = new URL(req.url, 'http://localhost');
+    if (url.pathname === '/health') return send(res, 200, 'ok', 'text/plain');
+    if (ADMIN_PASSWORD) {
+      if (!authorized(req.headers.authorization, ADMIN_USER, ADMIN_PASSWORD)) {
+        res.writeHead(401, { 'WWW-Authenticate': 'Basic realm="portal-builder"' });
+        return res.end('login required');
+      }
+    } else if (!/^(localhost|127\.0\.0\.1)(:\d+)?$/.test(req.headers.host || '')) {
+      // No password: local-only. Blocks DNS rebinding; the JSON content-type below forces a CORS preflight.
+      return send(res, 403, 'forbidden', 'text/plain');
+    }
     if (url.pathname.startsWith('/api/')) {
       if (req.method !== 'GET' && !(req.headers['content-type'] || '').includes('application/json')) return send(res, 415, { error: 'json only' });
       return await api(req, res, url);
@@ -220,5 +240,11 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-if (require.main === module) server.listen(PORT, '127.0.0.1', () => console.log(`portal-builder → http://localhost:${PORT}`));
-module.exports = { build, merge, toBook, server };
+if (require.main === module) {
+  if (!ADMIN_PASSWORD && !['127.0.0.1', 'localhost'].includes(HOST)) {
+    console.error(`Refusing to listen on ${HOST} without ADMIN_PASSWORD (this app can push to GitHub).`);
+    process.exit(1);
+  }
+  server.listen(PORT, HOST, () => console.log(`portal-builder → http://${HOST}:${PORT}`));
+}
+module.exports = { build, merge, toBook, server, authorized };

@@ -1,6 +1,6 @@
 // Offline self-check: renders a portal and verifies output. Run: node test.js
 const assert = require('assert'), fs = require('fs'), path = require('path');
-const { build, merge, toBook } = require('./server');
+const { build, merge, toBook, authorized } = require('./server');
 
 const doc = { identifier: 'x_1999_v1', title: 'T "q" <b>', creator: ['A B'], year: 1999, description: '<p>hi  there</p>' };
 const b = toBook(doc, '');
@@ -31,4 +31,7 @@ assert.equal(JSON.parse(read(dir, 'issues.json')).books.length, 1);
 html = read(dir, 'index.html');
 assert(html.includes('id="viewer"') && !html.includes('seeAlsoToggle"'), 'frame / no partners');
 fs.rmSync(dir, { recursive: true });
+const basic = (u, p) => 'Basic ' + Buffer.from(`${u}:${p}`).toString('base64');
+assert(authorized(basic('admin', 'p:w'), 'admin', 'p:w'), 'auth ok (password may contain colon)');
+assert(!authorized(basic('admin', 'x'), 'admin', 'p:w') && !authorized(basic('bob', 'p:w'), 'admin', 'p:w') && !authorized('', 'admin', 'p:w'));
 console.log('ok');

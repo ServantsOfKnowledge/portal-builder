@@ -21,3 +21,12 @@ Commits use `GIT_NAME` / `GIT_EMAIL` (default Omshivaprakash <omshivaprakash@gma
 Project configs live in `data/projects.json`; generated sites in `workspace/`. Both are git-ignored.
 
 `npm test` runs an offline self-check of the renderer.
+
+## Host on Coolify
+
+1. New Resource → Docker Compose, pick this repo (add a deploy key if it is private).
+2. Coolify flags `GH_TOKEN`: paste a GitHub token with `repo` scope (plus `workflow` if you ever push workflow files) that can create repos under the owners you publish to.
+3. Set the domain Coolify offers for `portal-builder` (port 4300). It generates the login password: **Environment Variables → `SERVICE_PASSWORD_PORTALBUILDER`**. The username is `ADMIN_USER` (default `admin`).
+4. Deploy. Project configs and generated sites persist in the `portal-data` and `portal-workspace` volumes.
+
+The server refuses to start on a public address without a password, and every request needs HTTP Basic auth (use HTTPS, which Coolify's proxy provides). `GIT_NAME` / `GIT_EMAIL` set the commit identity. Docker without Coolify: `ADMIN_PASSWORD=… GH_TOKEN=… docker compose up --build` after replacing the `SERVICE_*` lines.
