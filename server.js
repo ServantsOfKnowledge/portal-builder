@@ -115,6 +115,9 @@ function sortBooks(books) {
 }
 
 const qOf = (b) => [b.title, b.author, b.publisher, b.tags, b.level, volOf(b), issOf(b), b.identifier].join(' ').normalize('NFC').toLowerCase();
+// Bump when the portal template gains something worth rolling out to existing portals.
+// 1 = the original design (carries no marker), 2 = centred white design, SOK credit, paged loading, search index.
+const DESIGN_VERSION = 2;
 const PAGE = 30; // cards per page; later pages load as the reader scrolls
 function cardHtml(b, h, ui, read) {
   const vol = volOf(b), iss = issOf(b), id = esc(b.identifier);
@@ -152,6 +155,7 @@ function renderList(books, ui, read) {
 function pillsHtml(books, ui) {
   const years = [...new Set(books.map(yearOf))].sort((a, b) => (a === '' ? 1 : b === '' ? -1 : a - b));
   const pill = (val, label, on) => `<button type="button" class="pill" data-year="${esc(val)}" aria-pressed="${on}">${esc(label)}</button>`;
+  if (years.length < 2) return ''; // a single group needs no filter
   return pill('any', ui.ALL, true) + years.map((yr) => pill(yr || 'unknown', yr || ui.UNKNOWN, false)).join('');
 }
 
@@ -202,7 +206,7 @@ function build(p) {
     LIST: renderList(sorted.slice(0, PAGE), ui, read) + (sorted.length > PAGE ? '<div id="more" data-pages="' + Math.ceil(sorted.length / PAGE) + '"></div>' : ''), PILLS: pillsHtml(p.books, ui), COUNT: `${p.books.length} / ${p.books.length} ${esc(ui.ITEMS)}`,
     LDJSON: jsonLd(p, site, sorted), FRAME: String(p.openMode === 'frame'), TJSON: JSON.stringify({ items: ui.ITEMS }).replace(/</g, '\\u003c'),
     SOK: `${fs.existsSync(path.join(TPL, 'img', 'sok-logo.png')) ? '<img src="./img/sok-logo.png" alt="">' : ''}<span>A <a href="https://archive.org/details/ServantsOfKnowledge" target="_blank" rel="noopener">Servants of Knowledge</a> Initiative</span>`,
-    READ: esc(read), ...Object.fromEntries(Object.entries(ui).map(([k, t]) => ['T_' + k, esc(t)])),
+    DESIGN: DESIGN_VERSION, READ: esc(read), ...Object.fromEntries(Object.entries(ui).map(([k, t]) => ['T_' + k, esc(t)])),
   };
   const viewer = p.openMode === 'frame' ? fs.readFileSync(path.join(TPL, 'viewer.html'), 'utf8') : '';
   const html = fs.readFileSync(path.join(TPL, 'index.html'), 'utf8').replace('__VIEWER__', () => viewer)
@@ -321,6 +325,7 @@ async function importPortal(owner, repo, log) {
   else { fs.mkdirSync(WS, { recursive: true }); await sh('gh', ['repo', 'clone', `${owner}/${repo}`, dir], WS, log); }
   const rd = (n) => (fs.existsSync(path.join(dir, n)) ? fs.readFileSync(path.join(dir, n), 'utf8') : '');
   const p = fromOldSite(owner, repo, { issues: rd('issues.json'), html: rd('index.html'), cname: rd('CNAME'), hasFrame: fs.existsSync(path.join(dir, 'frame.html')) });
+  p.designVersion = +(/<meta name="portal-design" content="(\d+)"/.exec(rd('index.html')) || [])[1] || 1;
   p.defaultBranch = (await run('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: dir })).stdout.trim();
   const logo = path.join(dir, 'img', 'logo.png');
   if (fs.existsSync(logo)) { const a = path.join(DATA, 'assets', slug); fs.mkdirSync(a, { recursive: true }); fs.copyFileSync(logo, path.join(a, 'logo.png')); }
@@ -370,6 +375,7 @@ async function api(req, res, url) {
   const db = load();
   const [, , name, slug] = url.pathname.split('/');
   if (req.method === 'GET' && name === 'projects') return send(res, 200, db);
+  if (req.method === 'GET' && name === 'meta') return send(res, 200, { designVersion: DESIGN_VERSION });
   if (req.method === 'GET' && name === 'gh') {
     try { return send(res, 200, await listPortals(url.searchParams.get('owner'))); }
     catch (e) { return send(res, 200, { error: 'Could not list repos: ' + ((e.stderr || e.message) + '').trim().slice(0, 300) }); }
@@ -404,7 +410,7 @@ async function api(req, res, url) {
     const log = [], p = db[slug];
     try {
       if (!p || !p.imported) throw new Error('only imported portals can be modernised');
-      await modernise(p, log); p.modernised = true; save({ ...db, [slug]: p });
+      await modernise(p, log); p.modernised = true; p.designVersion = DESIGN_VERSION; save({ ...db, [slug]: p });
       send(res, 200, { ok: true, log });
     } catch (e) { log.push(e.message); send(res, 200, { ok: false, log }); }
     return;
@@ -412,7 +418,7 @@ async function api(req, res, url) {
   if (name === 'build') { build(db[slug]); return send(res, 200, { preview: `/preview/${slug}/` }); }
   if (name === 'launch') {
     const log = [];
-    try { await launch(db[slug], log); send(res, 200, { ok: true, log }); }
+    try { await launch(db[slug], log); db[slug].designVersion = DESIGN_VERSION; save(db); send(res, 200, { ok: true, log }); }
     catch (e) { send(res, 200, { ok: false, log }); }
     return;
   }
@@ -451,4 +457,4 @@ if (require.main === module) {
   }
   server.listen(PORT, HOST, () => console.log(`portal-builder → http://${HOST}:${PORT}`));
 }
-module.exports = { fromOldSite, build, merge, toBook, server, authorized };
+module.exports = { DESIGN_VERSION, fromOldSite, build, merge, toBook, server, authorized };

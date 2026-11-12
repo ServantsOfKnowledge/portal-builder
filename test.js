@@ -67,4 +67,5 @@ assert(!authorized(basic('admin', 'x'), 'admin', 'p:w') && !authorized(basic('bo
   const p = fromOldSite('sanchaya', 'Janapada-Vichara', { issues: '{"books":[{"identifier":"a","publisher":"Pub"}]}', html: '<html lang="kn"><title>T</title><meta name="description" content="D">G-ABCDEF123', cname: 'jv.sanchaya.net\n', hasFrame: true });
   assert(p.slug === 'janapada-vichara' && p.sub === 'jv' && p.domain === 'sanchaya.net' && p.title === 'T' && p.description === 'D' && p.orgName === 'Pub' && p.openMode === 'frame' && p.gaId === 'G-ABCDEF123' && p.books.length === 1);
 }
+assert(html.includes('<meta name="portal-design" content="' + require('./server.js').DESIGN_VERSION + '">'));
 console.log('ok');

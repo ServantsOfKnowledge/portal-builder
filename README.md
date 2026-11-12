@@ -40,3 +40,5 @@ The Servants of Knowledge logo lives at `template/img/sok-logo.png` (portal foot
 ## Existing portals
 
 **Import from GitHub** (sidebar) lists every repo of an org or user that has an `issues.json`, and imports the ones you tick. For an imported portal, **Modernise design & push** saves the live design on a `backup-old-design-*` branch (and `backup-old-design-pages-*` for gh-pages), replaces the repo with the new design, and pushes the default branch and `gh-pages`. Needs `gh` signed in (or `GH_TOKEN`) where the app runs.
+
+**Design version.** Every built portal carries `<meta name="portal-design" content="N">`. `DESIGN_VERSION` in `server.js` is the current N; bump it when the template gains something worth rolling out. An imported portal whose version is lower shows **Update design vA → vB & push** (portals without the marker count as v1).

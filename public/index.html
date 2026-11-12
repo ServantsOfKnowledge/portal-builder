@@ -314,7 +314,12 @@ $('#delBtn').onclick = () => busy(async () => {
   cur = null; form.hidden = true; $('#empty').hidden = false; renderList();
 });
 
-const showModernise = () => { $('#modBtn').hidden = !(cur && projects[cur.slug] && projects[cur.slug].imported && !projects[cur.slug].modernised); };
+let DESIGN = 0; api('GET', 'meta').then((m) => { DESIGN = m.designVersion; showModernise(); });
+const showModernise = () => {
+  const p = cur && projects[cur.slug], old = p && p.imported && (p.designVersion || 1) < DESIGN;
+  $('#modBtn').hidden = !old;
+  if (old) $('#modBtn').textContent = `Update design v${p.designVersion || 1} → v${DESIGN} & push`;
+};
 const _open = openProject; openProject = (p) => { $('#ghPanel').hidden = true; _open(p); showModernise(); };
 
 $('#ghBtn').onclick = () => { form.hidden = true; $('#empty').hidden = true; $('#ghPanel').hidden = false; cur = null; renderList(); };
@@ -342,7 +347,7 @@ $('#ghImport').onclick = () => busy(async () => {
 });
 $('#modBtn').onclick = () => busy(async () => {
   await persist();
-  if (!confirm(`Modernise ${cur.owner}/${cur.repo}?\n\nThe current design is saved on a backup-old-design-* branch, then the new design is pushed to ${cur.defaultBranch || 'master'} and gh-pages.\n\nTip: use "Preview locally" first.`)) return;
+  if (!confirm(`Update the design of ${cur.owner}/${cur.repo}?\n\nThe current design is saved on a backup-old-design-* branch, then the new design is pushed to ${cur.defaultBranch || 'master'} and gh-pages.\n\nTip: use "Preview locally" first.`)) return;
   log('Modernising…');
   const r = await api('POST', 'modernise/' + cur.slug);
   log(r.log.join('\n'), r.ok ? 'ok' : 'err');
