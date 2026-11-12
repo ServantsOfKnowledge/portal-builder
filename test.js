@@ -70,4 +70,9 @@ assert(!authorized(basic('admin', 'x'), 'admin', 'p:w') && !authorized(basic('bo
 assert(html.includes('<meta name="portal-design" content="' + require('./server.js').DESIGN_VERSION + '">'));
 assert(toBook({ identifier: 'q', subject: ['a; b ;c', 'b', 'd,e'] }).tags === 'a,b,c,d,e', 'subjects split into comma tags');
 assert(!html.includes('class="year"'), 'one flat list, no per-year sections');
+{ // refresh: IA wins where it has a value, keeps the rest
+  const { refreshBooks } = require('./server.js');
+  const r = refreshBooks([{ identifier: 'a', title: 'old', author: 'Old', level: 'ಮಾಸಿಕ', publisher: 'P' }, { identifier: 'z', title: 'keep' }], new Map([['a', toBook({ identifier: 'a', title: 'New', year: 1999 })]]));
+  assert(r.n === 1 && r.books[0].title === 'New' && r.books[0].level === 1999 && r.books[0].author === 'Old' && r.books[0].publisher === 'P' && r.books[1].title === 'keep');
+}
 console.log('ok');

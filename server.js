@@ -68,6 +68,29 @@ function toBook(d, info) {
   };
 }
 
+// Refresh: archive.org wins, but only for fields it actually has (publication year, title, author, ...).
+const REFRESH = ['title', 'author', 'publisher', 'tags', 'level', 'authorUrl', 'pages', 'license', 'volume', 'issue'];
+function refreshBooks(books, fresh) {
+  let n = 0;
+  const out = books.map((b) => {
+    const f = fresh.get(b.identifier);
+    if (!f) return b;
+    n++;
+    return { ...b, ...Object.fromEntries(REFRESH.filter((k) => f[k] !== '' && f[k] != null).map((k) => [k, f[k]])) };
+  });
+  return { books: out, n };
+}
+async function refreshFromIA(books, log) {
+  const fresh = new Map(), ids = books.map((b) => b.identifier);
+  try {
+    for (let i = 0; i < ids.length; i += 40)
+      for (const d of await iaFetch(`identifier:(${ids.slice(i, i + 40).map((x) => `"${x}"`).join(' OR ')})`)) fresh.set(d.identifier, toBook(d));
+  } catch (e) { log.push(`(could not reach archive.org: ${e.message}; kept the existing details)`); return books; }
+  const r = refreshBooks(books, fresh);
+  log.push(`Refreshed ${r.n} of ${books.length} items from archive.org (publication year, title, author, publisher, subjects, pages, licence).`);
+  return r.books;
+}
+
 // Existing rows win (so hand edits stay), but gain any fields they were missing (pages, licence, ...).
 function merge(existing, fresh) {
   const byId = new Map(fresh.map((b) => [b.identifier, b]));
@@ -348,6 +371,7 @@ async function modernise(p, log) {
   if (hasPages) await g('push', 'origin', `origin/gh-pages:refs/heads/backup-old-design-pages-${t}`);
   log.push(`Old design kept on branch backup-old-design-${t}`);
   await g('rm', '-rq', '--ignore-unmatch', '.');
+  p.books = await refreshFromIA(p.books, log);
   build(p);
   await g('add', '-A');
   if ((await run('git', ['status', '--porcelain'], { cwd: dir })).stdout.trim()) await g('commit', '-m', `Modernise portal design (old design kept on backup-old-design-${t})`);
@@ -456,4 +480,4 @@ if (require.main === module) {
   }
   server.listen(PORT, HOST, () => console.log(`portal-builder → http://${HOST}:${PORT}`));
 }
-module.exports = { DESIGN_VERSION, fromOldSite, build, merge, toBook, server, authorized };
+module.exports = { refreshBooks, DESIGN_VERSION, fromOldSite, build, merge, toBook, server, authorized };

@@ -347,7 +347,7 @@ $('#ghImport').onclick = () => busy(async () => {
 });
 $('#modBtn').onclick = () => busy(async () => {
   await persist();
-  if (!confirm(`Update the design of ${cur.owner}/${cur.repo}?\n\nThe current design is saved on a backup-old-design-* branch, then the new design is pushed to ${cur.defaultBranch || 'master'} and gh-pages.\n\nTip: use "Preview locally" first.`)) return;
+  if (!confirm(`Update the design of ${cur.owner}/${cur.repo}?\n\nThe current design is saved on a backup-old-design-* branch, item details (year, title, author, publisher) are refreshed from archive.org, then the new design is pushed to ${cur.defaultBranch || 'master'} and gh-pages.\n\nTip: use "Preview locally" first.`)) return;
   log('Modernising…');
   const r = await api('POST', 'modernise/' + cur.slug);
   log(r.log.join('\n'), r.ok ? 'ok' : 'err');
