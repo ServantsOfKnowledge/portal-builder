@@ -9,17 +9,16 @@
   * { box-sizing: border-box; }
   body { margin:0; font:14px/1.5 system-ui, -apple-system, sans-serif; background:#fff; color:var(--ink); display:flex; min-height:100vh; }
   aside { width:220px; border-right:1px solid var(--line); padding:20px 14px; flex-shrink:0; }
-  aside h1 { font-size:13px; font-weight:600; letter-spacing:.08em; margin:0 0 16px 8px; }
+  aside h1 { font-size:15px; font-weight:600; margin:0; }
   aside button.item { display:block; width:100%; text-align:left; background:none; border:0; color:var(--mute); padding:7px 8px; border-radius:4px; cursor:pointer; font:inherit; }
   aside button.item:hover, aside button.item.on { color:var(--ink); background:#f5f5f5; }
   aside .new { margin-top:12px; color:var(--ink) !important; }
   main { flex:1; padding:24px 36px 60px; }
   .wrap { max-width:960px; margin:0 auto; }
-  .brandbar { text-align:center; margin:4px 0 22px; }
-  .brandbar img { height:44px; width:auto; display:block; margin:0 auto 8px; }
-  .brandbar img:not([src]) { display:none; }
-  .brandbar h2 { font-size:1.15rem; margin:0; }
-  .brandbar p { margin:2px 0 0; color:var(--mute); font-size:.85rem; }
+  .sidebrand { text-align:center; padding:6px 4px 18px; margin-bottom:12px; border-bottom:1px solid var(--line); }
+  .sidebrand img { width:84px; height:84px; border-radius:50%; display:block; margin:0 auto 10px; }
+  .sidebrand img:not([src]) { display:none; }
+  .sidebrand p { margin:2px 0 0; color:var(--mute); font-size:12px; }
   .preview-link { margin:0 0 8px; font-size:13px; }
   fieldset { border:0; border-top:1px solid var(--line); margin:0 0 8px; padding:14px 0 6px; }
   legend { font-size:12px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:var(--mute); padding:0 10px 0 0; }
@@ -51,12 +50,11 @@
 </head>
 <body>
 <aside>
-  <h1>PORTAL BUILDER</h1>
+  <div class="sidebrand"><img id="sokLogo" src="/sok-logo.png" alt="Servants of Knowledge" onerror="this.removeAttribute('src')"><h1>Portal Builder</h1><p>A Servants of Knowledge product</p></div>
   <div id="list"></div>
   <button class="item new" id="newBtn">+ New portal</button>
 </aside>
 <main><div class="wrap">
-  <div class="brandbar"><img id="sokLogo" src="/sok-logo.png" alt="Servants of Knowledge" onerror="this.removeAttribute('src')"><h2>Portal Builder</h2><p>A Servants of Knowledge product</p></div>
   <div id="empty">Pick a portal on the left, or create a new one.</div>
   <form id="form" hidden>
     <fieldset><legend>Portal</legend><div class="grid">
