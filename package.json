@@ -1,0 +1,2 @@
+{ "name": "portal-builder", "version": "0.1.0", "private": true, "license": "MIT",
+  "scripts": { "start": "node server.js", "test": "node test.js" }, "engines": { "node": ">=20" } }

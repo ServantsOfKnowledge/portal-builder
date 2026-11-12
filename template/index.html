@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="__LANG__">
+<head>
+    <meta charset="utf-8">
+    <title>__TITLE__</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+    <meta name="description" content="__DESC__">
+    <meta name="author" content="__AUTHOR__">
+
+    <meta property="og:image" content="__OGIMG__" />
+    <meta property="og:title" content="__TITLE__" />
+    <meta property="og:description" content="__TAGLINE__" />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="__SITE__" />
+
+    <meta name="twitter:card" content="summary"/>
+    <meta name="twitter:url" content="__SITE__"/>
+    <meta name="twitter:title" content="__TITLE__"/>
+    <meta name="twitter:description" content="__TAGLINE__"/>
+    <meta name="twitter:image" content="__OGIMG__"/>
+    <meta name="twitter:creator" value="@_sanchaya" />
+
+    <link href='https://fonts.googleapis.com/css?family=Open+Sans+Condensed:700' rel='stylesheet' type='text/css'>
+    <link href='https://fonts.googleapis.com/css?family=Open+Sans' rel='stylesheet' type='text/css'>
+    <link rel="stylesheet" type="text/css" href="./css/index.css?v=2" media="all">
+
+    <!--[if lt IE 9]> <script src="http://html5shim.googlecode.com/svn/trunk/html5.js"></script> <![endif]-->
+
+    <link rel="icon" type="image/png" sizes="32x32" href="./img/ico/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="./img/ico/android-chrome-192x192.png">
+    <link rel="apple-touch-icon" sizes="192x192" href="./img/ico/android-chrome-192x192.png">
+</head>
+
+<body>
+    <!-- ==========================
+    NAVBAR
+    =========================== -->
+    <div class="navbar navbar-fixed-top jshead">
+        <a href="__SITE__" id="brandlogo">
+            <img src="./img/logo.png" alt="__TITLE__">
+        </a>
+        <div id="brandtext">
+            <a href="__SITE__">__TITLE__</a>
+            <span class="tagline">__TAGLINE__</span>
+        </div>
+        <a href="#" id="infos">?</a>
+
+        <div id="twittit">
+            <a href="https://twitter.com/_sanchaya" class="twitter-follow-button" data-show-count="false" data-show-screen-name="false">Follow @_sanchaya</a>
+            <script>!function(d,s,id){var js,fjs=d.getElementsByTagName(s)[0];if(!d.getElementById(id)){js=d.createElement(s);js.id=id;js.src="//platform.twitter.com/widgets.js";fjs.parentNode.insertBefore(js,fjs);}}(document,"script","twitter-wjs");</script>
+        </div>
+    </div>
+
+    <!-- ==========================
+    TOGGLE INFOS
+    =========================== -->
+    <div class="container" id="jsinfos">
+        <div class="row">
+            <div class="span6">
+                <h4><a href="__SITE__">__TITLE__</a></h4>
+                <hr>
+                <p>__DESC__</p>
+            </div>
+            <div class="span6">
+                <a href="https://twitter.com/share" class="twitter-share-button" data-text="__TITLE__" data-via="_sanchaya"></a>
+                <script>!function(d,s,id){var js,fjs=d.getElementsByTagName(s)[0];if(!d.getElementById(id)){js=d.createElement(s);js.id=id;js.src="//platform.twitter.com/widgets.js";fjs.parentNode.insertBefore(js,fjs);}}(document,"script","twitter-wjs");</script>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==========================
+    PARTNER LOGOS / FILTER
+    =========================== -->
+    <div class="container">
+        <div class="row">
+            <div class="pythonbooks span12">
+                <a href="#" id="seeAlsoToggle">See also &#9654;</a>
+                <div class="partner-logos" style="display: none;">
+                    <a href="https://sanchaya.org" target="_blank" title="ಸಂಚಯ">
+                        <img src="https://www.google.com/s2/favicons?sz=128&domain=sanchaya.org" alt="ಸಂಚಯ">
+                        <span>ಸಂಚಯ</span>
+                    </a>
+                    <a href="https://sanchifoundation.org" target="_blank" title="ಸಂಚಿ ಫೌಂಡೇಶನ್">
+                        <img src="https://sanchifoundation.org/storage/2021/03/sanchi-logo-transparent.png" alt="ಸಂಚಿ ಫೌಂಡೇಶನ್">
+                        <span>ಸಂಚಿ ಫೌಂಡೇಶನ್</span>
+                    </a>
+                </div>
+            </div>
+            <div class="span12 row-fluid">
+                <p class="span1">Filter by :</p>
+                <ul id="filterBy">
+                    <li><a href="#" data-level="any" class="active">All</a></li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- ////////// WRAPPER BOOKS -->
+        <div class="row" id="issueswrap"></div>
+    </div>
+
+    <!-- ==========================
+    FOOTER
+    =========================== -->
+    <div class="footer">
+        <hr>
+        <p>Except where otherwise noted, content on this site
+          is licensed under a Creative Commons Attribution 4.0 International License.
+          Each issue has its own copyright/license. Please read the metadata on the issue page.</p>
+        <p class="collaboration">This portal is built in collaboration with Servants of Knowledge and <a href="https://sanchaya.org" target="_blank">Sanchaya</a>.</p>
+    </div>
+
+    <script src="./js/jquery.min.js"></script>
+    <script src="./js/mustache.js"></script>
+
+    <script type="text/javascript">
+    (function() {
+        var $filterBy, $issuesWrap,
+            currentFilter = 'any';
+
+        function getYears(books) {
+            var seen = {}, years = [];
+            books.forEach(function(b) {
+                var y = String(b.level);
+                if (y !== '' && !seen[y]) {
+                    seen[y] = true;
+                    years.push(y);
+                }
+            });
+            return years.sort(function(a, b) {
+                var numA = parseInt(a, 10), numB = parseInt(b, 10);
+                if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+                return a.localeCompare(b);
+            });
+        }
+
+        function renderFilters(years, hasUnknown) {
+            if (hasUnknown) {
+                $filterBy.append('<li><a href="#" data-level="unknown">Unknown</a></li>');
+            }
+            years.forEach(function(year) {
+                $filterBy.append('<li><a href="#" data-level="' + year + '">' + year + '</a></li>');
+            });
+        }
+
+        function filterBooks(level) {
+            if (level === 'any') {
+                $('.booksection').show();
+            } else {
+                $('.booksection').hide();
+                $('.booksection.' + level).show();
+            }
+            currentFilter = level;
+        }
+
+        function initFilters() {
+            $filterBy.on('click', 'a', function(e) {
+                e.preventDefault();
+                var level = $(this).data('level');
+                if (level === currentFilter) return;
+                $filterBy.find('a').removeClass('active');
+                $(this).addClass('active');
+                filterBooks(level);
+            });
+        }
+
+        $(document).ready(function() {
+            $filterBy = $('#filterBy');
+            $issuesWrap = $('#issueswrap');
+
+            $.getJSON('./issues.json?' + Date.now())
+            .done(function(data) {
+                var years = getYears(data.books);
+                var hasUnknown = data.books.some(function(b) { return String(b.level) === ''; });
+                renderFilters(years, hasUnknown);
+                initFilters();
+                data.books.sort(function() { return 0.5 - Math.random(); });
+                $issuesWrap.html(Mustache.to_html($('#booktpl').html(), data));
+            })
+            .fail(function(jqXHR, textStatus, error) {
+                console.error('Failed to load books:', textStatus, error);
+            });
+
+            $('#jsinfos').hide();
+            $('#infos').on('click', function(e) {
+                e.preventDefault();
+                $('#jsinfos').slideToggle();
+            });
+
+            $('#seeAlsoToggle').on('click', function(e) {
+                e.preventDefault();
+                var $logos = $('.partner-logos');
+                if ($logos.hasClass('open')) {
+                    $logos.removeClass('open').slideUp();
+                    $(this).html('See also &#9654;');
+                } else {
+                    $logos.addClass('open').hide().slideDown(function() {
+                        $logos.css('display', 'flex');
+                    });
+                    $(this).html('See also &#9660;');
+                }
+            });
+        });
+    })();
+    </script>
+
+    <script id="booktpl" type="text/template">
+        {{#books}}
+         <div class="span4 booksection {{#level}}{{level}}{{/level}}{{^level}}unknown{{/level}}">
+          <a class="book-link" href="{{url}}" target="_blank" rel="noopener noreferrer">
+           <div class="view"> __READ__ </div>
+
+           <div title="{{ title }}" id="cover" style="background:black url('{{cover}}') no-repeat center;-webkit-background-size:cover;-moz-background-size:cover;background-size:cover;">
+           </div>
+           <h2 title="{{ title }}">{{title}}</h2>
+          </a>
+          <h3><a href="{{authorUrl}}" target="_blank">{{author}}</a></h3>
+          <p class="level">{{level}}</p>
+          <p class="description">{{info}}</p>
+        </div>
+        {{/books}}
+    </script>
+
+    __GA__
+</body>
+</html>
