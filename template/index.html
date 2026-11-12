@@ -1,214 +1,128 @@
 <!DOCTYPE html>
 <html lang="__LANG__">
 <head>
-    <meta charset="utf-8">
-    <title>__TITLE__</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-    <meta name="description" content="__DESC__">
-    <meta name="author" content="__AUTHOR__">
-
-    <meta property="og:image" content="__OGIMG__" />
-    <meta property="og:title" content="__TITLE__" />
-    <meta property="og:description" content="__TAGLINE__" />
-    <meta property="og:type" content="website" />
-    <meta property="og:url" content="__SITE__" />
-
-    <meta name="twitter:card" content="summary"/>
-    <meta name="twitter:url" content="__SITE__"/>
-    <meta name="twitter:title" content="__TITLE__"/>
-    <meta name="twitter:description" content="__TAGLINE__"/>
-    <meta name="twitter:image" content="__OGIMG__"/>
-    <meta name="twitter:creator" value="@_sanchaya" />
-
-    <link href='https://fonts.googleapis.com/css?family=Open+Sans+Condensed:700' rel='stylesheet' type='text/css'>
-    <link href='https://fonts.googleapis.com/css?family=Open+Sans' rel='stylesheet' type='text/css'>
-    <link rel="stylesheet" type="text/css" href="./css/index.css?v=2" media="all">
-
-    <!--[if lt IE 9]> <script src="http://html5shim.googlecode.com/svn/trunk/html5.js"></script> <![endif]-->
-
-    <link rel="icon" type="image/png" sizes="32x32" href="./img/ico/favicon-32x32.png">
-    <link rel="icon" type="image/png" sizes="192x192" href="./img/ico/android-chrome-192x192.png">
-    <link rel="apple-touch-icon" sizes="192x192" href="./img/ico/android-chrome-192x192.png">
+<meta charset="utf-8">
+<title>__TITLE__</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="__DESC__">
+<meta name="author" content="__AUTHOR__">
+<link rel="canonical" href="__SITE__/">
+<meta property="og:title" content="__TITLE__">
+<meta property="og:description" content="__TAGLINE__">
+<meta property="og:type" content="website">
+<meta property="og:url" content="__SITE__">
+<meta property="og:image" content="__OGIMG__">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="__TITLE__">
+<meta name="twitter:description" content="__TAGLINE__">
+<meta name="twitter:image" content="__OGIMG__">
+<link rel="icon" type="image/png" sizes="32x32" href="./img/ico/favicon-32x32.png">
+<link rel="apple-touch-icon" sizes="192x192" href="./img/ico/android-chrome-192x192.png">
+<link rel="stylesheet" href="./css/portal.css">
+<script type="application/ld+json">__LDJSON__</script>
 </head>
-
 <body>
-    <!-- ==========================
-    NAVBAR
-    =========================== -->
-    <div class="navbar navbar-fixed-top jshead">
-        <a href="__SITE__" id="brandlogo">
-            <img src="./img/logo.png" alt="__TITLE__">
-        </a>
-        <div id="brandtext">
-            <a href="__SITE__">__TITLE__</a>
-            <span class="tagline">__TAGLINE__</span>
-        </div>
-        <a href="#" id="infos">?</a>
+<a class="skip" href="#list">__T_SKIP__</a>
 
-        <div id="twittit">
-            <a href="https://twitter.com/_sanchaya" class="twitter-follow-button" data-show-count="false" data-show-screen-name="false">Follow @_sanchaya</a>
-            <script>!function(d,s,id){var js,fjs=d.getElementsByTagName(s)[0];if(!d.getElementById(id)){js=d.createElement(s);js.id=id;js.src="//platform.twitter.com/widgets.js";fjs.parentNode.insertBefore(js,fjs);}}(document,"script","twitter-wjs");</script>
-        </div>
-    </div>
+<header class="top">
+  <a class="logo" href="./" aria-label="__TITLE__"><img src="./img/logo.png" alt="" height="56"></a>
+  <h1>__TITLE__</h1>
+  <p class="tagline">__TAGLINE__</p>
+  <details class="about"><summary>__T_ABOUT__</summary><p>__DESC__</p></details>
+</header>
 
-    <!-- ==========================
-    TOGGLE INFOS
-    =========================== -->
-    <div class="container" id="jsinfos">
-        <div class="row">
-            <div class="span6">
-                <h4><a href="__SITE__">__TITLE__</a></h4>
-                <hr>
-                <p>__DESC__</p>
-            </div>
-            <div class="span6">
-                <a href="https://twitter.com/share" class="twitter-share-button" data-text="__TITLE__" data-via="_sanchaya"></a>
-                <script>!function(d,s,id){var js,fjs=d.getElementsByTagName(s)[0];if(!d.getElementById(id)){js=d.createElement(s);js.id=id;js.src="//platform.twitter.com/widgets.js";fjs.parentNode.insertBefore(js,fjs);}}(document,"script","twitter-wjs");</script>
-            </div>
-        </div>
-    </div>
+<div class="bar">
+  <div class="controls" role="search">
+    <label class="sr" for="q">__T_SEARCHLABEL__</label>
+    <input id="q" type="search" placeholder="__T_SEARCH__" autocomplete="off" enterkeyhint="search">
+    <button id="rand" type="button" class="btn">__T_RANDOM__</button>
+  </div>
+  <div class="pills" id="pills">__PILLS__</div>
+  <p id="count" class="count" aria-live="polite">__COUNT__</p>
+</div>
 
-    <!-- ==========================
-    PARTNER LOGOS / FILTER
-    =========================== -->
-    <div class="container">
-        <div class="row">
-            __PARTNERS__
-            <div class="span12 row-fluid">
-                <p class="span1">Filter by :</p>
-                <ul id="filterBy">
-                    <li><a href="#" data-level="any" class="active">All</a></li>
-                </ul>
-            </div>
-        </div>
+<main id="list" tabindex="-1">
+__LIST__
+<p id="none" class="none" hidden>__T_NONE__</p>
+</main>
 
-        <!-- ////////// WRAPPER BOOKS -->
-        <div class="row" id="issueswrap"></div>
-    </div>
+<footer>
+  __PARTNERS__
+  <p class="credit">__CREDIT__</p>
+  <p class="fine">Except where otherwise noted, content on this site is licensed under a Creative Commons Attribution 4.0 International License. Each issue has its own copyright/license. Please read the metadata on the issue page.</p>
+  <p class="sok">__SOK__</p>
+</footer>
 
-    <!-- ==========================
-    FOOTER
-    =========================== -->
-    <div class="footer">
-        <hr>
-        <p>Except where otherwise noted, content on this site
-          is licensed under a Creative Commons Attribution 4.0 International License.
-          Each issue has its own copyright/license. Please read the metadata on the issue page.</p>
-        <p class="collaboration">__CREDIT__</p>
-    </div>
+__VIEWER__
 
-    <script src="./js/jquery.min.js"></script>
-    <script src="./js/mustache.js"></script>
+<script>
+(function () {
+  'use strict';
+  var FRAME = __FRAME__, T = __TJSON__;
+  var $ = function (s) { return document.querySelector(s); };
+  var $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
+  var q = $('#q'), cards = $$('.card'), pills = $$('.pill'), year = 'any';
+  var norm = function (s) { return s.normalize('NFC').toLowerCase(); };
 
-    <script type="text/javascript">
-    (function() {
-        var $filterBy, $issuesWrap,
-            currentFilter = 'any';
+  function apply() {
+    var terms = norm(q.value).split(/\s+/).filter(Boolean), n = 0;
+    cards.forEach(function (c) {
+      var ok = (year === 'any' || c.dataset.year === year) && terms.every(function (t) { return c.dataset.q.indexOf(t) > -1; });
+      c.hidden = !ok; if (ok) n++;
+    });
+    ['.vol', '.year'].forEach(function (sel) {
+      $$(sel).forEach(function (g) { g.hidden = !g.querySelector('.card:not([hidden])'); });
+    });
+    $('#count').textContent = n + ' / ' + cards.length + ' ' + T.items;
+    $('#none').hidden = n > 0;
+  }
+  q.addEventListener('input', apply);
+  pills.forEach(function (p) {
+    p.addEventListener('click', function () {
+      year = p.dataset.year;
+      pills.forEach(function (x) { x.setAttribute('aria-pressed', x === p ? 'true' : 'false'); });
+      apply();
+    });
+  });
 
-        function getYears(books) {
-            var seen = {}, years = [];
-            books.forEach(function(b) {
-                var y = String(b.level);
-                if (y !== '' && !seen[y]) {
-                    seen[y] = true;
-                    years.push(y);
-                }
-            });
-            return years.sort(function(a, b) {
-                var numA = parseInt(a, 10), numB = parseInt(b, 10);
-                if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
-                return a.localeCompare(b);
-            });
-        }
+  // shortcut: random pick only highlights; it never opens (popup blockers, and readers can still choose).
+  $('#rand').addEventListener('click', function () {
+    var vis = cards.filter(function (c) { return !c.hidden; });
+    if (!vis.length) return;
+    cards.forEach(function (c) { c.classList.remove('hit'); });
+    var c = vis[Math.floor(Math.random() * vis.length)];
+    c.classList.add('hit');
+    c.scrollIntoView({ block: 'center' });
+    c.querySelector('a.t').focus({ preventScroll: true });
+  });
 
-        function renderFilters(years, hasUnknown) {
-            if (hasUnknown) {
-                $filterBy.append('<li><a href="#" data-level="unknown">Unknown</a></li>');
-            }
-            years.forEach(function(year) {
-                $filterBy.append('<li><a href="#" data-level="' + year + '">' + year + '</a></li>');
-            });
-        }
-
-        function filterBooks(level) {
-            if (level === 'any') {
-                $('.booksection').show();
-            } else {
-                $('.booksection').hide();
-                $('.booksection.' + level).show();
-            }
-            currentFilter = level;
-        }
-
-        function initFilters() {
-            $filterBy.on('click', 'a', function(e) {
-                e.preventDefault();
-                var level = $(this).data('level');
-                if (level === currentFilter) return;
-                $filterBy.find('a').removeClass('active');
-                $(this).addClass('active');
-                filterBooks(level);
-            });
-        }
-
-        $(document).ready(function() {
-            $filterBy = $('#filterBy');
-            $issuesWrap = $('#issueswrap');
-
-            $.getJSON('./issues.json?' + Date.now())
-            .done(function(data) {
-                var years = getYears(data.books);
-                var hasUnknown = data.books.some(function(b) { return String(b.level) === ''; });
-                renderFilters(years, hasUnknown);
-                initFilters();
-                data.books.sort(function() { return 0.5 - Math.random(); });
-                $issuesWrap.html(Mustache.to_html($('#booktpl').html(), data));
-            })
-            .fail(function(jqXHR, textStatus, error) {
-                console.error('Failed to load books:', textStatus, error);
-            });
-
-            $('#jsinfos').hide();
-            $('#infos').on('click', function(e) {
-                e.preventDefault();
-                $('#jsinfos').slideToggle();
-            });
-
-            $('#seeAlsoToggle').on('click', function(e) {
-                e.preventDefault();
-                var $logos = $('.partner-logos');
-                if ($logos.hasClass('open')) {
-                    $logos.removeClass('open').slideUp();
-                    $(this).html('See also &#9654;');
-                } else {
-                    $logos.addClass('open').hide().slideDown(function() {
-                        $logos.css('display', 'flex');
-                    });
-                    $(this).html('See also &#9660;');
-                }
-            });
-        });
-    })();
-    </script>
-
-    <script id="booktpl" type="text/template">
-        {{#books}}
-         <div class="span4 booksection {{#level}}{{level}}{{/level}}{{^level}}unknown{{/level}}">
-          <a class="book-link" data-id="{{identifier}}" href="{{url}}" target="_blank" rel="noopener noreferrer">
-           <div class="view"> __READ__ </div>
-
-           <div title="{{ title }}" id="cover" style="background:black url('{{cover}}') no-repeat center;-webkit-background-size:cover;-moz-background-size:cover;background-size:cover;">
-           </div>
-           <h2 title="{{ title }}">{{title}}</h2>
-          </a>
-          <h3><a href="{{authorUrl}}" target="_blank">{{author}}</a></h3>
-          <p class="level">{{level}}</p>
-          <p class="description">{{info}}</p>
-        </div>
-        {{/books}}
-    </script>
-
-    __FRAME__
-    __GA__
+  if (FRAME) {
+    var dlg = $('#viewer'), fr = $('#vframe'), cur = -1;
+    var items = function () { return cards.filter(function (c) { return !c.hidden; }).map(function (c) { return c.querySelector('a.t'); }); };
+    var show = function (a) {
+      var l = items(); cur = l.indexOf(a);
+      fr.src = 'https://archive.org/embed/' + a.dataset.id;
+      $('#vtab').href = a.href; $('#vtitle').textContent = a.dataset.title;
+      $('#vprev').disabled = cur <= 0; $('#vnext').disabled = cur < 0 || cur >= l.length - 1;
+      if (!dlg.open) dlg.showModal();
+    };
+    $('#list').addEventListener('click', function (e) {
+      var a = e.target.closest('a.open');
+      if (!a || e.button || e.metaKey || e.ctrlKey || e.shiftKey) return;
+      e.preventDefault(); show(a.closest('.card').querySelector('a.t'));
+    });
+    var step = function (d) { var l = items(), n = l[cur + d]; if (n) show(n); };
+    $('#vprev').addEventListener('click', function () { step(-1); });
+    $('#vnext').addEventListener('click', function () { step(1); });
+    $('#vclose').addEventListener('click', function () { dlg.close(); });
+    dlg.addEventListener('click', function (e) { if (e.target === dlg) dlg.close(); });
+    dlg.addEventListener('close', function () { fr.src = 'about:blank'; });
+    dlg.addEventListener('keydown', function (e) {
+      if (e.key === 'ArrowLeft') step(-1); else if (e.key === 'ArrowRight') step(1);
+    });
+  }
+})();
+</script>
+__GA__
 </body>
 </html>

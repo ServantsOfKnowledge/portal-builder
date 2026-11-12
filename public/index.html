@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Portal Builder</title>
+<title>Portal Builder · Servants of Knowledge</title>
 <style>
   :root { --ink:#1a1a1a; --mute:#767676; --line:#e6e6e6; }
   * { box-sizing: border-box; }
@@ -13,7 +13,14 @@
   aside button.item { display:block; width:100%; text-align:left; background:none; border:0; color:var(--mute); padding:7px 8px; border-radius:4px; cursor:pointer; font:inherit; }
   aside button.item:hover, aside button.item.on { color:var(--ink); background:#f5f5f5; }
   aside .new { margin-top:12px; color:var(--ink) !important; }
-  main { flex:1; padding:24px 36px 60px; max-width:1000px; }
+  main { flex:1; padding:24px 36px 60px; }
+  .wrap { max-width:960px; margin:0 auto; }
+  .brandbar { text-align:center; margin:4px 0 22px; }
+  .brandbar img { height:44px; width:auto; display:block; margin:0 auto 8px; }
+  .brandbar img:not([src]) { display:none; }
+  .brandbar h2 { font-size:1.15rem; margin:0; }
+  .brandbar p { margin:2px 0 0; color:var(--mute); font-size:.85rem; }
+  .preview-link { margin:0 0 8px; font-size:13px; }
   fieldset { border:0; border-top:1px solid var(--line); margin:0 0 8px; padding:14px 0 6px; }
   legend { font-size:12px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:var(--mute); padding:0 10px 0 0; }
   .grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(230px, 1fr)); gap:12px 16px; }
@@ -48,7 +55,8 @@
   <div id="list"></div>
   <button class="item new" id="newBtn">+ New portal</button>
 </aside>
-<main>
+<main><div class="wrap">
+  <div class="brandbar"><img id="sokLogo" src="/sok-logo.png" alt="Servants of Knowledge" onerror="this.removeAttribute('src')"><h2>Portal Builder</h2><p>A Servants of Knowledge product</p></div>
   <div id="empty">Pick a portal on the left, or create a new one.</div>
   <form id="form" hidden>
     <fieldset><legend>Portal</legend><div class="grid">
@@ -103,14 +111,15 @@
     <div class="bar">
       <button type="button" class="b" id="fetchBtn">Fetch items from IA</button>
       <button type="submit" class="b">Save</button>
-      <button type="button" class="b" id="previewBtn">Preview</button>
+      <button type="button" class="b" id="previewBtn">Preview locally</button>
       <button type="button" class="b pri" id="launchBtn">Launch / Push to GitHub</button>
       <button type="button" class="b" id="dupBtn">Duplicate as new</button>
       <button type="button" class="b" id="delBtn">Remove</button>
     </div>
+    <p class="preview-link" id="previewLink" hidden></p>
     <pre id="log">—</pre>
   </form>
-</main>
+</div></main>
 
 <script>
 const $ = (s) => document.querySelector(s);
@@ -158,6 +167,7 @@ function showAsset(img, kind) {
 }
 
 function open(p) {
+  $('#previewLink').hidden = true;
   cur = JSON.parse(JSON.stringify(p));
   $('#empty').hidden = true; form.hidden = false;
   for (const el of form.elements) if (el.name) el.value = cur[el.name] ?? '';
@@ -226,13 +236,24 @@ for (const [id, kind, prev] of [['#logo', 'logo', '#logoPrev'], ['#favicon', 'fa
   });
 }
 
-$('#previewBtn').onclick = () => busy(async () => {
-  await persist(); const r = await api('POST', 'build/' + cur.slug); window.open(r.preview, '_blank');
-});
+// Open the tab first (a click-initiated window.open is allowed; after an await it is often blocked).
+$('#previewBtn').onclick = () => {
+  const w = window.open('', '_blank');
+  busy(async () => {
+    try {
+      await persist(); const r = await api('POST', 'build/' + cur.slug);
+      const url = location.origin + r.preview;
+      if (w) w.location = url;
+      $('#previewLink').hidden = false;
+      $('#previewLink').innerHTML = `Local preview: <a href="${url}" target="_blank">${url}</a> (nothing is pushed until you click Launch)`;
+      log('Preview built locally.', 'ok');
+    } catch (e) { if (w) w.close(); throw e; }
+  });
+};
 
 $('#launchBtn').onclick = () => busy(async () => {
   await persist();
-  if (!confirm(`Commit and push ${cur.owner}/${cur.repo || cur.slug} to GitHub (master + gh-pages)?`)) return;
+  if (!confirm(`Go live? This commits and pushes ${cur.owner}/${cur.repo || cur.slug} to GitHub (master + gh-pages).\n\nTip: use "Preview locally" first.`)) return;
   log('Launching…');
   const r = await api('POST', 'launch/' + cur.slug);
   log(r.log.join('\n'), r.ok ? 'ok' : 'err');

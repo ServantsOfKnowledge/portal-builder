@@ -35,7 +35,7 @@ async function iaFetch(q) {
   for (let page = 1; ; page++) {
     const u = new URL('https://archive.org/advancedsearch.php');
     u.searchParams.set('q', q);
-    for (const f of ['identifier', 'title', 'creator', 'publisher', 'description', 'subject', 'date', 'year']) u.searchParams.append('fl[]', f);
+    for (const f of ['identifier', 'title', 'creator', 'publisher', 'description', 'subject', 'date', 'year', 'imagecount', 'licenseurl', 'volume', 'issue']) u.searchParams.append('fl[]', f);
     u.searchParams.append('sort[]', 'identifier asc');
     u.searchParams.set('rows', '500'); u.searchParams.set('page', page); u.searchParams.set('output', 'json');
     const r = await fetch(u);
@@ -59,14 +59,20 @@ function toBook(d, info) {
     authorUrl: author ? `https://archive.org/search?query=creator%3A%22${encodeURIComponent(author).replace(/%20/g, '+')}%22` : '',
     url: `https://archive.org/details/${d.identifier}`,
     cover: `https://archive.org/services/img/${d.identifier}`,
+    pages: Number(d.imagecount) || '',
+    license: arr(d.licenseurl)[0] || '',
+    volume: String(arr(d.volume)[0] || ''),
+    issue: String(arr(d.issue)[0] || ''),
   };
 }
 
-// Existing rows (and any hand edits) win; only new identifiers are appended.
+// Existing rows win (so hand edits stay), but gain any fields they were missing (pages, licence, ...).
 function merge(existing, fresh) {
+  const byId = new Map(fresh.map((b) => [b.identifier, b]));
   const have = new Set(existing.map((b) => b.identifier));
   const added = fresh.filter((b) => !have.has(b.identifier));
-  return { books: [...existing, ...added].sort((a, b) => a.identifier.localeCompare(b.identifier)), added: added.length };
+  const kept = existing.map((b) => ({ ...byId.get(b.identifier), ...b }));
+  return { books: [...kept, ...added].sort((a, b) => a.identifier.localeCompare(b.identifier)), added: added.length };
 }
 
 // ---- site rendering --------------------------------------------------------
@@ -83,15 +89,89 @@ function validate(p) {
 
 const safeUrl = (u) => (/^https?:\/\//.test(u || '') ? esc(u) : '');
 
-// "Name | https://site | optional logo url" per line
+const UI = {
+  en: { SEARCH: 'Search title, author, year…', SEARCHLABEL: 'Search', ALL: 'All', RANDOM: 'Random issue', SKIP: 'Skip to the list',
+    ABOUT: 'About this collection', NONE: 'Nothing matches your search.', PREV: 'Previous', NEXT: 'Next', CLOSE: 'Close',
+    NEWTAB: 'Open in new tab', ITEMS: 'items', PAGES: 'pages', DOWNLOAD: 'Download', VOL: 'Vol.', ISSUE: 'No.', UNKNOWN: 'Year unknown', LICENSE: 'Licence' },
+  kn: { SEARCH: 'ಶೀರ್ಷಿಕೆ, ಲೇಖಕ, ವರ್ಷ ಹುಡುಕಿ…', SEARCHLABEL: 'ಹುಡುಕಿ', ALL: 'ಎಲ್ಲಾ', RANDOM: 'ಯಾದೃಚ್ಛಿಕ ಸಂಚಿಕೆ', SKIP: 'ಪಟ್ಟಿಗೆ ಹೋಗಿ',
+    ABOUT: 'ಈ ಸಂಗ್ರಹದ ಬಗ್ಗೆ', NONE: 'ಹುಡುಕಾಟಕ್ಕೆ ಹೊಂದುವ ಸಂಚಿಕೆಗಳಿಲ್ಲ.', PREV: 'ಹಿಂದಿನದು', NEXT: 'ಮುಂದಿನದು', CLOSE: 'ಮುಚ್ಚಿ',
+    NEWTAB: 'ಹೊಸ ಟ್ಯಾಬ್‌ನಲ್ಲಿ ತೆರೆಯಿರಿ', ITEMS: 'ಸಂಚಿಕೆಗಳು', PAGES: 'ಪುಟಗಳು', DOWNLOAD: 'ಡೌನ್‌ಲೋಡ್', VOL: 'ಸಂಪುಟ', ISSUE: 'ಸಂಚಿಕೆ', UNKNOWN: 'ವರ್ಷ ತಿಳಿದಿಲ್ಲ', LICENSE: 'ಪರವಾನಗಿ' },
+};
+
+const pick = (re, s) => (re.exec(s || '') || [])[1] || '';
+const volOf = (b) => b.volume || pick(/(?:ಸಂಪುಟ|vol(?:ume)?\.?)[\s\-:.]*(\d+)/i, b.title);
+const issOf = (b) => b.issue || pick(/(?:ಸಂಚಿಕೆ|issue|no\.?)[\s\-:.]*(\d+)/i, b.title);
+const yearOf = (b) => (b.level === '' || b.level == null ? '' : String(b.level));
+
+function licenseLabel(url, fallback) {
+  const m = /creativecommons\.org\/(licenses|publicdomain)\/([a-z-]+)\/([\d.]+)/.exec(url);
+  return !m ? fallback : m[1] === 'publicdomain' ? 'CC0' : `CC ${m[2].toUpperCase()} ${m[3]}`;
+}
+
+// Chronological: by year (unknown last), then identifier with numbers compared as numbers.
+function sortBooks(books) {
+  const y = (b) => (yearOf(b) === '' ? Infinity : +b.level);
+  return [...books].sort((a, b) => (y(a) < y(b) ? -1 : y(a) > y(b) ? 1 : a.identifier.localeCompare(b.identifier, 'en', { numeric: true })));
+}
+
+function cardHtml(b, h, ui, read) {
+  const vol = volOf(b), iss = issOf(b), id = esc(b.identifier);
+  const q = esc([b.title, b.author, b.publisher, b.tags, b.level, vol, iss, b.identifier].join(' ').normalize('NFC').toLowerCase());
+  const author = b.author ? (safeUrl(b.authorUrl) ? `<a href="${safeUrl(b.authorUrl)}" target="_blank" rel="noopener">${esc(b.author)}</a>` : esc(b.author)) : '';
+  const facts = [iss && `${ui.ISSUE} ${esc(iss)}`, b.pages && `${esc(b.pages)} ${ui.PAGES}`].filter(Boolean).join(' · ');
+  const open = (cls, label) => `<a class="open ${cls}" data-id="${id}" data-title="${esc(b.title)}" href="${esc(b.url)}" target="_blank" rel="noopener">${label}</a>`;
+  return `<li class="card" data-year="${esc(yearOf(b) || 'unknown')}" data-q="${q}">
+<a class="cover open" data-id="${id}" data-title="${esc(b.title)}" href="${esc(b.url)}" target="_blank" rel="noopener" tabindex="-1" aria-hidden="true"><img src="${esc(b.cover)}" alt="" loading="lazy" decoding="async" width="300" height="400"></a>
+<${h}>${open('t', esc(b.title))}</${h}>
+${author ? `<p class="meta">${author}</p>` : ''}${facts ? `<p class="meta">${facts}</p>` : ''}
+<p class="links">${open('read', esc(read))}<a href="https://archive.org/download/${id}" target="_blank" rel="noopener">${ui.DOWNLOAD}</a>${safeUrl(b.license) ? `<a href="${safeUrl(b.license)}" target="_blank" rel="noopener">${esc(licenseLabel(b.license, ui.LICENSE))}</a>` : ''}</p>
+</li>`;
+}
+
+// Whole list is rendered at build time: crawlers and no-JS readers get real content; JS only filters it.
+function renderList(books, ui, read) {
+  let out = '', y, v;
+  const closeVol = () => { if (v !== undefined) out += '</ul></div>'; v = undefined; };
+  for (const b of sortBooks(books)) {
+    const yr = yearOf(b), vol = volOf(b);
+    if (yr !== y) {
+      closeVol(); if (y !== undefined) out += '</section>';
+      out += `<section class="year" data-year="${esc(yr || 'unknown')}"><h2>${esc(yr || ui.UNKNOWN)}</h2>`; y = yr;
+    }
+    if (vol !== v) {
+      closeVol();
+      out += `<div class="vol">${vol ? `<h3>${ui.VOL} ${esc(vol)}</h3>` : ''}<ul class="cards">`; v = vol;
+    }
+    out += cardHtml(b, vol ? 'h4' : 'h3', ui, read);
+  }
+  closeVol(); if (y !== undefined) out += '</section>';
+  return out;
+}
+
+function pillsHtml(books, ui) {
+  const years = [...new Set(books.map(yearOf))].sort((a, b) => (a === '' ? 1 : b === '' ? -1 : a - b));
+  const pill = (val, label, on) => `<button type="button" class="pill" data-year="${esc(val)}" aria-pressed="${on}">${esc(label)}</button>`;
+  return pill('any', ui.ALL, true) + years.map((yr) => pill(yr || 'unknown', yr || ui.UNKNOWN, false)).join('');
+}
+
+function jsonLd(p, site, books) {
+  return JSON.stringify({
+    '@context': 'https://schema.org', '@type': 'CollectionPage', name: p.title, description: p.description, url: site + '/', inLanguage: p.lang || undefined,
+    publisher: p.orgName ? { '@type': 'Organization', name: p.orgName, url: p.orgUrl || undefined } : undefined,
+    mainEntity: { '@type': 'ItemList', numberOfItems: books.length, itemListElement: books.map((b, i) => ({
+      '@type': 'ListItem', position: i + 1,
+      item: { '@type': 'CreativeWork', name: b.title, url: b.url, author: b.author ? { '@type': 'Person', name: b.author } : undefined,
+        datePublished: yearOf(b) || undefined, license: b.license || undefined },
+    })) },
+  }).replace(/</g, '\\u003c');
+}
+
+// "Name | https://site | optional logo URL" per line
 function partnersHtml(text) {
   const items = String(text || '').split('\n').map((l) => l.split('|').map((x) => x.trim())).filter(([n, u]) => n && safeUrl(u));
   if (!items.length) return '';
-  const links = items.map(([n, u, img]) => {
-    const logo = safeUrl(img) || `https://www.google.com/s2/favicons?sz=128&domain=${encodeURIComponent(new URL(u).hostname)}`;
-    return `<a href="${safeUrl(u)}" target="_blank" rel="noopener" title="${esc(n)}"><img src="${logo}" alt="${esc(n)}"><span>${esc(n)}</span></a>`;
-  });
-  return `<div class="pythonbooks span12"><a href="#" id="seeAlsoToggle">See also &#9654;</a><div class="partner-logos" style="display: none;">${links.join('')}</div></div>`;
+  return '<ul class="partners">' + items.map(([n, u, img]) =>
+    `<li><a href="${safeUrl(u)}" target="_blank" rel="noopener">${safeUrl(img) ? `<img src="${safeUrl(img)}" alt="" loading="lazy" height="20"> ` : ''}${esc(n)}</a></li>`).join('') + '</ul>';
 }
 
 function creditHtml(p) {
@@ -105,22 +185,31 @@ function build(p) {
   validate(p);
   const dir = path.join(WS, p.slug);
   fs.mkdirSync(dir, { recursive: true });
-  for (const d of ['css', 'js', 'img']) fs.cpSync(path.join(TPL, d), path.join(dir, d), { recursive: true });
+  for (const d of ['css', 'img']) fs.cpSync(path.join(TPL, d), path.join(dir, d), { recursive: true });
   const assets = path.join(DATA, 'assets', p.slug);
   const logo = path.join(assets, 'logo.png'), fav = path.join(assets, 'favicon.png');
   if (fs.existsSync(logo)) fs.copyFileSync(logo, path.join(dir, 'img', 'logo.png'));
   if (fs.existsSync(fav)) for (const n of ['favicon-32x32.png', 'android-chrome-192x192.png']) fs.copyFileSync(fav, path.join(dir, 'img', 'ico', n));
-  const host = `${p.sub || p.slug}.${p.domain}`;
+  const host = `${p.sub || p.slug}.${p.domain}`, site = 'https://' + host;
+  const ui = UI[String(p.lang || 'en').split('-')[0]] || UI.en;
+  const read = p.readLabel || 'Read';
+  const sorted = sortBooks(p.books);
   const v = {
     LANG: esc(p.lang || 'kn'), TITLE: esc(p.title), TAGLINE: esc(p.tagline), DESC: esc(p.description),
-    AUTHOR: esc(p.orgName), SITE: 'https://' + host, OGIMG: esc(p.books[0]?.cover || ''),
-    READ: esc(p.readLabel || 'Read'), GA: GA(p.gaId) || '',
+    AUTHOR: esc(p.orgName), SITE: site, OGIMG: esc(sorted[0]?.cover || ''), GA: GA(p.gaId) || '',
     PARTNERS: partnersHtml(p.partners), CREDIT: creditHtml(p),
-    FRAME: p.openMode === 'frame' ? fs.readFileSync(path.join(TPL, 'frame.html'), 'utf8') : '',
+    LIST: renderList(p.books, ui, read), PILLS: pillsHtml(p.books, ui), COUNT: `${p.books.length} / ${p.books.length} ${esc(ui.ITEMS)}`,
+    LDJSON: jsonLd(p, site, sorted), FRAME: String(p.openMode === 'frame'), TJSON: JSON.stringify({ items: ui.ITEMS }).replace(/</g, '\\u003c'),
+    SOK: `<a href="https://archive.org/details/ServantsOfKnowledge" target="_blank" rel="noopener">${fs.existsSync(path.join(TPL, 'img', 'sok-logo.png')) ? '<img src="./img/sok-logo.png" alt="">' : ''}<span>A Servants of Knowledge product</span></a>`,
+    READ: esc(read), ...Object.fromEntries(Object.entries(ui).map(([k, t]) => ['T_' + k, esc(t)])),
   };
-  const html = fs.readFileSync(path.join(TPL, 'index.html'), 'utf8').replace(/__([A-Z]+)__/g, (m, k) => (k in v ? v[k] : m));
+  const viewer = p.openMode === 'frame' ? fs.readFileSync(path.join(TPL, 'viewer.html'), 'utf8') : '';
+  const html = fs.readFileSync(path.join(TPL, 'index.html'), 'utf8').replace('__VIEWER__', () => viewer)
+    .replace(/__([A-Z_]+)__/g, (m, k) => (k in v ? v[k] : m));
   fs.writeFileSync(path.join(dir, 'index.html'), html);
   fs.writeFileSync(path.join(dir, 'issues.json'), JSON.stringify({ books: p.books }, null, 2));
+  fs.writeFileSync(path.join(dir, 'sitemap.xml'), `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>${site}/</loc><lastmod>${new Date().toISOString().slice(0, 10)}</lastmod></url></urlset>\n`);
+  fs.writeFileSync(path.join(dir, 'robots.txt'), `User-agent: *\nAllow: /\nSitemap: ${site}/sitemap.xml\n`);
   fs.writeFileSync(path.join(dir, 'CNAME'), host + '\n');
   fs.writeFileSync(path.join(dir, '.gitignore'), '.DS_Store\n');
   fs.writeFileSync(path.join(dir, 'README.md'), `# ${p.title}\n\nDigital archive hosted at **https://${host}**\n\nPublished by ${p.orgName || p.owner}. Items come from Internet Archive query:\n\n    ${p.query}\n`);
