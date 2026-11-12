@@ -200,7 +200,7 @@ function build(p) {
     PARTNERS: partnersHtml(p.partners), CREDIT: creditHtml(p),
     LIST: renderList(p.books, ui, read), PILLS: pillsHtml(p.books, ui), COUNT: `${p.books.length} / ${p.books.length} ${esc(ui.ITEMS)}`,
     LDJSON: jsonLd(p, site, sorted), FRAME: String(p.openMode === 'frame'), TJSON: JSON.stringify({ items: ui.ITEMS }).replace(/</g, '\\u003c'),
-    SOK: `<a href="https://archive.org/details/ServantsOfKnowledge" target="_blank" rel="noopener">${fs.existsSync(path.join(TPL, 'img', 'sok-logo.png')) ? '<img src="./img/sok-logo.png" alt="">' : ''}<span>A Servants of Knowledge product</span></a>`,
+    SOK: `${fs.existsSync(path.join(TPL, 'img', 'sok-logo.png')) ? '<img src="./img/sok-logo.png" alt="">' : ''}<span>A <a href="https://archive.org/details/ServantsOfKnowledge" target="_blank" rel="noopener">Servants of Knowledge</a> Initiative</span>`,
     READ: esc(read), ...Object.fromEntries(Object.entries(ui).map(([k, t]) => ['T_' + k, esc(t)])),
   };
   const viewer = p.openMode === 'frame' ? fs.readFileSync(path.join(TPL, 'viewer.html'), 'utf8') : '';

@@ -45,7 +45,7 @@ assert(at('j_1991_02_v11_i2') < at('j_1991_02_v11_i10'), 'natural order');
 assert(html.includes('CC BY 4.0') && html.includes('80 ಪುಟಗಳು') && html.includes('archive.org/download/j_1990_07_v10_i1'));
 assert(html.includes('loading="lazy"') && html.includes('type="application/ld+json"') && html.includes('"numberOfItems":4'));
 assert.equal((html.match(/<li class="card"/g) || []).length, 4);
-assert(html.includes('A Servants of Knowledge product') && html.includes('./img/sok-logo.png'));
+assert(html.includes('Servants of Knowledge</a> Initiative') && html.includes('./img/sok-logo.png'));
 assert(fs.existsSync(path.join(dir, 'img', 'sok-logo.png')), 'logo copied into the portal');
 assert.equal(read(dir, 'CNAME'), 'selftest.sanchaya.net\n');
 assert(read(dir, 'robots.txt').includes('sitemap.xml') && read(dir, 'sitemap.xml').includes('<loc>https://selftest.sanchaya.net/</loc>'));

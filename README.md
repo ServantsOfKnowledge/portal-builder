@@ -1,6 +1,6 @@
 # portal-builder
 
-A [Servants of Knowledge](https://archive.org/details/ServantsOfKnowledge) product.
+A [Servants of Knowledge](https://archive.org/details/ServantsOfKnowledge) Initiative.
 
 Local app to create and launch static Internet Archive portals (the `janapadavichara.sanchaya.net` pattern) on GitHub Pages.
 
