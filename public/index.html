@@ -154,7 +154,7 @@ function renderList() {
     const b = document.createElement('button');
     b.className = 'item' + (cur && cur.slug === slug ? ' on' : '');
     b.textContent = projects[slug].title || slug;
-    b.onclick = () => open(projects[slug]);
+    b.onclick = () => openProject(projects[slug]);
     $('#list').append(b);
   });
 }
@@ -166,7 +166,7 @@ function showAsset(img, kind) {
   img.onerror = () => img.removeAttribute('src');
 }
 
-function open(p) {
+function openProject(p) {
   $('#previewLink').hidden = true;
   cur = JSON.parse(JSON.stringify(p));
   $('#empty').hidden = true; form.hidden = false;
@@ -214,7 +214,7 @@ async function busy(fn) {
   try { await fn(); } catch (e) { log(e.message, 'err'); } finally { bs.forEach((b) => (b.disabled = false)); }
 }
 
-$('#newBtn').onclick = () => open({ ...DEFAULTS, books: [] });
+$('#newBtn').onclick = () => openProject({ ...DEFAULTS, books: [] });
 form.onsubmit = (e) => { e.preventDefault(); busy(async () => { await persist(); log('Saved.', 'ok'); }); };
 for (const n of ['slug', 'sub', 'domain', 'owner', 'repo']) form[n].addEventListener('input', () => { readForm(); renderRows(); });
 
@@ -259,7 +259,7 @@ $('#launchBtn').onclick = () => busy(async () => {
   log(r.log.join('\n'), r.ok ? 'ok' : 'err');
 });
 
-$('#dupBtn').onclick = () => open({ ...readForm(), slug: '', sub: '', repo: '', books: [] });
+$('#dupBtn').onclick = () => openProject({ ...readForm(), slug: '', sub: '', repo: '', books: [] });
 $('#delBtn').onclick = () => busy(async () => {
   if (!projects[cur.slug] || !confirm('Remove from this list? (The GitHub repo and local workspace folder are untouched.)')) return;
   await api('DELETE', 'projects/' + cur.slug); delete projects[cur.slug];

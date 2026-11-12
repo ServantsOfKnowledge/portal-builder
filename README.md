@@ -35,4 +35,4 @@ The server refuses to start on a public address without a password, and every re
 
 ## Logo
 
-Place the Servants of Knowledge logo at `template/img/sok-logo.png` (portals) and `public/sok-logo.png` (this app). Without the files, only the name is shown.
+The Servants of Knowledge logo lives at `template/img/sok-logo.png` (portal footers) and `public/sok-logo.png` (this app). Replace either file to change it; if a file is removed, only the name is shown.
