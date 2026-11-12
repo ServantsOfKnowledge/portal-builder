@@ -106,6 +106,36 @@ async function refreshFromIA(books, log) {
   return r.books;
 }
 
+// Items that no longer exist on archive.org (looked up by identifier). On any error nothing is reported missing.
+async function missingOnIA(ids) {
+  try {
+    const have = new Set();
+    for (let i = 0; i < ids.length; i += 40)
+      for (const d of await iaFetch(`identifier:(${ids.slice(i, i + 40).map((x) => `"${x}"`).join(' OR ')})`)) have.add(d.identifier);
+    return ids.filter((x) => !have.has(x));
+  } catch { return []; }
+}
+
+// The portal's original items, read from git: the oldest backup-old-design-* branch if there is one, else the fullest
+// recent version of issues.json on the default branch (so a portal that was overwritten can be put back).
+const booksOf = (j) => (Array.isArray(j) ? j : j.books || []).filter((b) => b && b.identifier).map((b) => ({ ...b, tags: normTags(b.tags) }));
+async function gitOriginal(p) {
+  ownerOk(p.owner);
+  const repo = `${p.owner}/${p.repo || p.slug}`, dir = path.join(DATA, 'orig', p.slug), log = [];
+  if (fs.existsSync(path.join(dir, '.git'))) await sh('git', ['fetch', '-q', 'origin', '+refs/heads/*:refs/remotes/origin/*'], dir, log);
+  else { fs.mkdirSync(path.dirname(dir), { recursive: true }); await sh('gh', ['repo', 'clone', repo, dir, '--', '--no-checkout'], path.dirname(dir), log); }
+  const git = async (...a) => (await run('git', a, { cwd: dir, maxBuffer: 100e6 })).stdout;
+  const refs = (await git('for-each-ref', '--format=%(refname:short)', 'refs/remotes/origin/')).split('\n').filter(Boolean);
+  const backup = refs.filter((r) => /\/backup-old-design-\d/.test(r)).sort()[0];
+  if (backup) return { source: backup, books: booksOf(JSON.parse(await git('show', `${backup}:issues.json`))) };
+  const br = refs.includes('origin/' + (p.defaultBranch || 'master')) ? 'origin/' + (p.defaultBranch || 'master') : refs.find((r) => /\/(master|main)$/.test(r));
+  let best = { source: br, books: [] };
+  for (const c of (await git('log', '--format=%H', '-n', '30', br, '--', 'issues.json')).split('\n').filter(Boolean)) {
+    try { const b = booksOf(JSON.parse(await git('show', `${c}:issues.json`))); if (b.length > best.books.length) best = { source: `${br} @ ${c.slice(0, 7)}`, books: b }; } catch { /* not JSON at that commit */ }
+  }
+  return best;
+}
+
 // Existing rows win (so hand edits stay), but gain any fields they were missing (pages, licence, ...).
 function merge(existing, fresh) {
   const byId = new Map(fresh.map((b) => [b.identifier, b]));
@@ -378,7 +408,7 @@ async function importPortal(owner, repo, log) {
   p.defaultBranch = (await run('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: dir })).stdout.trim();
   const logo = path.join(dir, 'img', 'logo.png');
   if (fs.existsSync(logo)) { const a = path.join(DATA, 'assets', slug); fs.mkdirSync(a, { recursive: true }); fs.copyFileSync(logo, path.join(a, 'logo.png')); }
-  const db = load(); validate(p); db[slug] = { ...p, ...Object.fromEntries(Object.entries(db[slug] || {}).filter(([k]) => ['modernised'].includes(k))) }; save(db);
+  const db = load(); validate(p); db[slug] = { ...p, originalBooks: db[slug]?.originalBooks || p.books, ...Object.fromEntries(Object.entries(db[slug] || {}).filter(([k]) => ['modernised'].includes(k))) }; save(db);
   log.push(`Imported ${owner}/${repo}: ${p.books.length} items, ${p.sub}.${p.domain}`);
   return slug;
 }
@@ -440,7 +470,17 @@ async function api(req, res, url) {
   if (name === 'projects' && req.method === 'DELETE') { delete db[slug]; save(db); return send(res, 200, { ok: true }); }
   if (name === 'fetch') {
     if (!b.query) throw new Error('enter an Internet Archive query');
-    const r = merge(b.books || [], (await iaFetch(b.query)).map((d) => toBook(d, b.info)));
+    const fresh = (await iaFetch(b.query)).map((d) => toBook(d, b.info));
+    const r = merge(b.books || [], fresh);
+    // Original items always stay. Items added by earlier fetches that are gone from archive.org are dropped.
+    const p = b.slug && db[b.slug];
+    if (p && p.imported && !p.originalBooks) { try { p.originalBooks = (await gitOriginal(p)).books; save(db); } catch { /* no git copy: drop nothing */ } }
+    r.removed = 0;
+    if (p && p.originalBooks) {
+      const keep = new Set([...p.originalBooks.map((x) => x.identifier), ...fresh.map((x) => x.identifier)]);
+      const gone = await missingOnIA(r.books.filter((x) => !keep.has(x.identifier)).map((x) => x.identifier));
+      r.books = r.books.filter((x) => !gone.includes(x.identifier)); r.removed = gone.length;
+    }
     return send(res, 200, r);
   }
   if (name === 'asset') { // POST /api/asset/<slug>/<logo|favicon>
@@ -464,6 +504,11 @@ async function api(req, res, url) {
       send(res, 200, { ok: true, log });
     } catch (e) { log.push(e.message); send(res, 200, { ok: false, log }); }
     return;
+  }
+  if (name === 'original') { // GET-like: the portal's original items, to revert to
+    const p = db[slug]; if (!p) throw new Error('save the portal first');
+    if (!p.originalBooks) { const o = await gitOriginal(p); p.originalBooks = o.books; p.originalSource = o.source; save(db); }
+    return send(res, 200, { books: p.originalBooks, source: p.originalSource || 'import' });
   }
   if (name === 'infer') return send(res, 200, { collection: await inferCollection((b.ids || []).filter((x) => /^[\w.\-]+$/.test(x))) });
   if (name === 'build') { build(db[slug]); return send(res, 200, { preview: `/preview/${slug}/` }); }

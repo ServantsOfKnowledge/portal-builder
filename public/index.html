@@ -134,6 +134,7 @@
       <button type="button" class="b pri" id="launchBtn">Launch / Push to GitHub</button>
       <button type="button" class="b pri" id="modBtn" hidden>Modernise design &amp; push</button>
       <button type="button" class="b" id="dupBtn">Duplicate as new</button>
+      <button type="button" class="b" id="revertBtn" hidden>Revert to original items</button>
       <button type="button" class="b" id="delBtn">Remove</button>
     </div>
     <p class="preview-link" id="liveLink" hidden></p>
@@ -289,8 +290,8 @@ for (const n of ['slug', 'sub', 'domain', 'owner', 'repo']) form[n].addEventList
 
 $('#fetchBtn').onclick = () => busy(async () => {
   readForm(); log('Querying archive.org…');
-  const r = await api('POST', 'fetch', { query: cur.query, info: cur.info, books: cur.books });
-  cur.books = r.books; renderRows(); log(`${r.added} new item(s) added. Review, then Save.`, 'ok');
+  const r = await api('POST', 'fetch', { slug: cur.slug, query: cur.query, info: cur.info, books: cur.books });
+  cur.books = r.books; renderRows(); log(`${r.added} new item(s) added${r.removed ? `, ${r.removed} no longer on archive.org removed` : ''}. Original items are always kept. Review, then Save.`, 'ok');
 });
 
 // Logo / favicon: save the project first (so the slug exists), then upload.
@@ -328,6 +329,13 @@ $('#launchBtn').onclick = () => busy(async () => {
   log(r.log.join('\n'), r.ok ? 'ok' : 'err');
 });
 
+$('#revertBtn').onclick = () => busy(async () => {
+  log('Looking for the original items…');
+  const r = await api('POST', 'original/' + cur.slug);
+  if (!r.books.length) return log('No original items found.', 'err');
+  if (!confirm(`Replace the ${cur.books.length} current items with the ${r.books.length} original ones (${r.source})?\n\nNothing is saved or pushed until you click Save.`)) return log('—');
+  cur.books = r.books; renderRows(); log(`Restored ${r.books.length} original items from ${r.source}. Click Save to keep them.`, 'ok');
+});
 $('#dupBtn').onclick = () => openProject({ ...readForm(), slug: '', sub: '', repo: '', books: [], projectName: '', prefix: '', title: '', query: '', dirty: {} });
 $('#delBtn').onclick = () => busy(async () => {
   if (!projects[cur.slug] || !confirm('Remove from this list? (The GitHub repo and local workspace folder are untouched.)')) return;
@@ -344,7 +352,7 @@ function showLive() {
 }
 for (const n of ['slug', 'sub', 'domain']) form[n].addEventListener('input', () => cur && showLive());
 const showModernise = () => {
-  if (cur) showLive();
+  if (cur) { showLive(); $('#revertBtn').hidden = !projects[cur.slug]; }
   const p = cur && projects[cur.slug], old = p && p.imported && (p.designVersion || 1) < DESIGN;
   $('#modBtn').hidden = !old;
   if (old) $('#modBtn').textContent = `Update design v${p.designVersion || 1} → v${DESIGN} & push`;
