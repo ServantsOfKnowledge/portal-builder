@@ -11,6 +11,7 @@
   aside { width:220px; border-right:1px solid var(--line); padding:20px 14px; flex-shrink:0; }
   aside h1 { font-size:15px; font-weight:600; margin:0; }
   aside button.item { display:block; width:100%; text-align:left; background:none; border:0; color:var(--mute); padding:7px 8px; border-radius:4px; cursor:pointer; font:inherit; }
+  aside .grp { margin:14px 8px 4px; font-size:.68rem; letter-spacing:.05em; text-transform:uppercase; color:#999; }
   aside button.item:hover, aside button.item.on { color:var(--ink); background:#f5f5f5; }
   aside .new { margin-top:12px; color:var(--ink) !important; }
   main { flex:1; padding:24px 36px 60px; }
@@ -196,14 +197,28 @@ function generate() {
   renderRows();
 }
 
+// Sidebar: grouped by design version. Older designs first (they can be updated), then current, then portals never pushed.
+const verOf = (p) => p.designVersion || (p.imported ? 1 : 0);
 function renderList() {
-  $('#list').innerHTML = '';
+  const list = $('#list'); list.innerHTML = '';
+  const groups = new Map();
   Object.keys(projects).sort().forEach((slug) => {
-    const b = document.createElement('button');
-    b.className = 'item' + (cur && cur.slug === slug ? ' on' : '');
-    b.textContent = projects[slug].title || slug;
-    b.onclick = () => openProject(projects[slug]);
-    $('#list').append(b);
+    const v = verOf(projects[slug]), key = v === 0 ? 'new' : v >= DESIGN ? 'cur' : 'v' + v;
+    if (!groups.has(key)) groups.set(key, { v, items: [] });
+    groups.get(key).items.push(slug);
+  });
+  const order = (k) => (k === 'new' ? 1e6 : k === 'cur' ? 1e5 : groups.get(k).v);
+  const label = (k, g) => (k === 'new' ? 'Not pushed yet' : k === 'cur' ? `Current design · v${DESIGN}` : `Older design · v${g.v}`);
+  [...groups.keys()].sort((x, y) => order(x) - order(y)).forEach((k) => {
+    const g = groups.get(k), h = document.createElement('div');
+    h.className = 'grp'; h.textContent = `${label(k, g)} (${g.items.length})`; list.append(h);
+    g.items.forEach((slug) => {
+      const b = document.createElement('button');
+      b.className = 'item' + (cur && cur.slug === slug ? ' on' : '');
+      b.textContent = projects[slug].title || slug;
+      b.onclick = () => openProject(projects[slug]);
+      list.append(b);
+    });
   });
 }
 
@@ -351,6 +366,7 @@ $('#launchBtn').onclick = () => busy(async () => {
   log('Launching…');
   const r = await api('POST', 'launch/' + cur.slug);
   log(r.log.join('\n'), r.ok ? 'ok' : 'err');
+  if (r.ok) { projects = await api('GET', 'projects'); renderList(); showModernise(); }
 });
 
 $('#revertBtn').onclick = () => busy(async () => {
@@ -367,7 +383,7 @@ $('#delBtn').onclick = () => busy(async () => {
   cur = null; form.hidden = true; $('#empty').hidden = false; renderList();
 });
 
-let DESIGN = 0; api('GET', 'meta').then((m) => { DESIGN = m.designVersion; showModernise(); });
+let DESIGN = 0; api('GET', 'meta').then((m) => { DESIGN = m.designVersion; showModernise(); renderList(); });
 // Link to the portal as it is live right now (the existing site before an update, the new one after a push).
 function showLive() {
   const f = readForm(), a = f.sub || f.slug, url = a && f.domain ? `https://${a}.${f.domain}/` : '';
@@ -412,7 +428,7 @@ $('#modBtn').onclick = () => busy(async () => {
   log('Modernising…');
   const r = await api('POST', 'modernise/' + cur.slug);
   log(r.log.join('\n'), r.ok ? 'ok' : 'err');
-  if (r.ok) { projects = await api('GET', 'projects'); cur = JSON.parse(JSON.stringify(projects[cur.slug])); showModernise(); }
+  if (r.ok) { projects = await api('GET', 'projects'); cur = JSON.parse(JSON.stringify(projects[cur.slug])); showModernise(); renderList(); }
 });
 
 api('GET', 'projects').then((p) => { projects = p; renderList(); });
