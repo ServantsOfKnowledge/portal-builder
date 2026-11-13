@@ -343,10 +343,12 @@ async function preflight() {
   if (r.noYear) notes.push(`${r.noYear} item(s) without a year (shown under Unknown)`);
   if (r.missing.length) {
     const list = r.missing.slice(0, 8).map((m) => `• ${m.identifier}${m.original ? ' (in the original list)' : ''}`).join('\n') + (r.missing.length > 8 ? `\n… and ${r.missing.length - 8} more` : '');
-    if (!confirm(`${r.missing.length} of ${r.total} items are not on archive.org any more:\n\n${list}\n\nRemove them from the portal and continue?\n(Cancel stops here. "Revert to original items" can bring them back.)`)) { log('Stopped: missing items not resolved.', 'err'); return false; }
-    const gone = new Set(r.missing.map((m) => m.identifier));
-    cur.books = cur.books.filter((b) => !gone.has(b.identifier)); renderRows(); await persist();
-    notes.unshift(`${r.missing.length} missing item(s) removed`);
+    const drop = confirm(`${r.missing.length} of ${r.total} items are not on archive.org any more:\n\n${list}\n\nOK = remove them from the portal and continue.\nCancel = keep them as they are in issues.json and continue.`);
+    if (drop) {
+      const gone = new Set(r.missing.map((m) => m.identifier));
+      cur.books = cur.books.filter((b) => !gone.has(b.identifier)); renderRows(); await persist();
+      notes.unshift(`${r.missing.length} missing item(s) removed`);
+    } else notes.unshift(`${r.missing.length} item(s) not on archive.org kept`);
   }
   log(notes.length ? 'Checked: ' + notes.join('; ') : `Checked ${r.total} items: all present on archive.org.`, notes.length ? '' : 'ok');
   return true;
