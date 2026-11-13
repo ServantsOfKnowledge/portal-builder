@@ -245,6 +245,15 @@ function openProject(p) {
   form.slug.readOnly = !!projects[cur.slug];
   showAsset($('#logoPrev'), 'logo'); showAsset($('#favPrev'), 'favicon');
   renderRows(); renderList(); log('—'); window.scrollTo(0, 0);
+  if (!cur.query && cur.books.length && projects[cur.slug]) { // learn the pattern from issues.json; local only, no archive.org call
+    const s0 = cur.slug;
+    api('POST', 'query/' + s0 + '?offline=1', { books: cur.books }).then((r) => {
+      if (!cur || cur.slug !== s0 || form.query.value) return;
+      if (r.error) return log('No common identifier pattern in issues.json, so there is no query: this portal works from its existing items. “Build query from existing items” can try a collection lookup.');
+      cur.query = form.query.value = r.query; if (r.prefix) cur.prefix = form.prefix.value = r.prefix;
+      log(`Query learned from the ${r.count} items in issues.json: ${r.query}`, 'ok');
+    }).catch(() => {});
+  }
 }
 
 function readForm() {

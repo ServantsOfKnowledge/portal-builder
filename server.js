@@ -510,6 +510,7 @@ async function importPortal(owner, repo, log) {
   p.defaultBranch = (await run('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: dir })).stdout.trim();
   const logo = path.join(dir, 'img', 'logo.png');
   if (fs.existsSync(logo)) { const a = path.join(DATA, 'assets', slug); fs.mkdirSync(a, { recursive: true }); fs.copyFileSync(logo, path.join(a, 'logo.png')); }
+  const q0 = buildQuery(p.books.map((x) => x.identifier), ''); if (q0) Object.assign(p, q0);
   const extra = path.join(DATA, 'assets', slug, 'extra');
   for (const ref of [p.authorImage, ...p.logos.split('\n').map((l) => l.split('|')[2]?.trim())]) {
     const mm = /^(?:\.\/)?img\/([\w.-]+)$/.exec(ref || ''), src = mm && path.join(dir, 'img', mm[1]);
@@ -627,7 +628,8 @@ async function api(req, res, url) {
     try { add(booksOf(JSON.parse(fs.readFileSync(path.join(WS, p.slug, 'issues.json'), 'utf8'))), 'local repo copy'); } catch { /* none */ }
     if (!ids.size) { try { add((await gitOriginal(p)).books, 'GitHub history'); } catch { /* none */ } }
     if (!ids.size) return send(res, 200, { error: 'No existing items found to learn the pattern from. Type the identifier prefix under "Start here".' });
-    const list = [...ids], collection = (await inferCollection(list).catch(() => '')) || p.collection || 'ServantsOfKnowledge';
+    const list = [...ids], offline = url.searchParams.get('offline') === '1'; // offline: pattern only, no archive.org call
+    const collection = offline ? (p.imported ? '' : p.collection || '') : (await inferCollection(list).catch(() => '')) || p.collection || 'ServantsOfKnowledge';
     const q = buildQuery(list, collection);
     if (!q) return send(res, 200, { error: `These ${list.length} identifiers share no common prefix pattern. Type the prefix under "Start here" (the whole collection is not pulled).` });
     return send(res, 200, { ...q, collection, count: list.length, source: src.join(' + ') });
