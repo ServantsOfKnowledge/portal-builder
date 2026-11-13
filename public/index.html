@@ -127,7 +127,7 @@
 
     <fieldset><legend id="count">Items</legend>
       <div class="scroll"><table>
-        <thead><tr><th>Identifier</th><th>Title</th><th>Author</th><th>Year</th><th></th></tr></thead>
+        <thead><tr><th>Identifier</th><th>Title</th><th>English title</th><th>Author</th><th>Year</th><th></th></tr></thead>
         <tbody id="rows"></tbody>
       </table></div>
     </fieldset>
@@ -135,6 +135,7 @@
     <div class="bar">
       <button type="button" class="b" id="queryBtn">Build query from existing items</button>
       <button type="button" class="b" id="fetchBtn">Fetch items from IA</button>
+      <button type="button" class="b" id="translitBtn" title="Adds a Roman-script title under each Kannada title; also searchable">Transliterate titles to English</button>
       <button type="button" class="b" id="refreshBtn">Refresh details from IA</button>
       <button type="submit" class="b">Save</button>
       <button type="button" class="b" id="checkBtn">Check items</button>
@@ -259,9 +260,9 @@ function renderRows() {
   cur.books.forEach((b, i) => {
     const tr = document.createElement('tr');
     tr.innerHTML = `<td class="hint">${b.identifier}</td>`;
-    for (const k of ['title', 'author', 'level']) {
+    for (const k of ['title', 'titleEn', 'author', 'level']) {
       const td = document.createElement('td'), inp = document.createElement('input');
-      inp.value = b[k]; if (k === 'level') inp.style.width = '70px';
+      inp.value = b[k] ?? ''; if (k === 'level') inp.style.width = '70px';
       inp.oninput = () => { b[k] = k === 'level' && inp.value !== '' ? Number(inp.value) || '' : inp.value; };
       td.append(inp); tr.append(td);
     }
@@ -325,6 +326,10 @@ async function buildQueryFromItems() {
     log(`Query built from ${r.count} existing items (${r.source}): ${r.query}`, 'ok');
   } catch (e) { log(e.message, 'err'); }
 }
+$('#translitBtn').onclick = () => busy(async () => {
+  const r = await api('POST', 'translit', { books: cur.books });
+  cur.books = r.books; renderRows(); log('Added English titles where missing. Edit any in the Items table, then Save.', 'ok');
+});
 $('#refreshBtn').onclick = () => busy(async () => {
   log('Refreshing year, title, author, publisher, subjects and descriptions from archive.org…');
   const r = await api('POST', 'refresh', { books: cur.books });

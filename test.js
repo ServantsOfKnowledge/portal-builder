@@ -1,6 +1,6 @@
 // Offline self-check: renders portals and verifies output. Run: node test.js
 const assert = require('assert'), fs = require('fs'), path = require('path');
-const { build, merge, toBook, authorized, extractBranding, logosHtml, authorHtml } = require('./server');
+const { build, merge, toBook, authorized, translit, extractBranding, logosHtml, authorHtml } = require('./server');
 
 // --- IA mapping and merge
 const doc = { identifier: 'x_1999_v1', title: 'T "q" <b>', creator: ['A B'], year: 1999, description: '<p>hi  there</p>',
@@ -104,4 +104,6 @@ assert(require('./server.js').pickCollection([{ collection: ['JaiGyan', 'Servant
   assert.strictEqual(b.authorImage, './img/dsn.jpeg'); assert.strictEqual(b.authorName, 'DSN (1952-2022)'); assert.ok(b.authorBio.startsWith('A long bio'));
   assert.strictEqual(b.logos, '');
 }
+assert.strictEqual(translit('ಡಿ. ಎಸ್. ನಾಗಭೂಷಣ ಸಮಗ್ರ ಸಾಹಿತ್ಯ'), 'Di. Es. Nagabhushana Samagra Sahitya');
+assert.strictEqual(translit('ಸಂಚಯ ಕನ್ನಡ'), 'Sanchaya Kannada');
 console.log('ok');

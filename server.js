@@ -77,6 +77,25 @@ const normTags = (v) => [...new Set(arr(v).flatMap((s) => String(s).split(/[;,]/
 // take the year from the identifier (e.g. ..._1990_07_...), or leave it blank (shown as Unknown).
 const YEAR = /^(1[5-9]\d\d|20\d\d)$/;
 const idYear = (id) => (/(?:^|[^0-9])(1[5-9]\d\d|20\d\d)(?:[^0-9]|$)/.exec(id || '') || [])[1] || '';
+// Kannada -> Roman (everyday spelling: no diacritics, long vowels written short). Consonants keep their inherent "a"; a virama drops it.
+const KN_V = { 'ಅ': 'a', 'ಆ': 'a', 'ಇ': 'i', 'ಈ': 'i', 'ಉ': 'u', 'ಊ': 'u', 'ಋ': 'ru', 'ಎ': 'e', 'ಏ': 'e', 'ಐ': 'ai', 'ಒ': 'o', 'ಓ': 'o', 'ಔ': 'au' };
+const KN_M = { 'ಾ': 'a', 'ಿ': 'i', 'ೀ': 'i', 'ು': 'u', 'ೂ': 'u', 'ೃ': 'ru', 'ೆ': 'e', 'ೇ': 'e', 'ೈ': 'ai', 'ೊ': 'o', 'ೋ': 'o', 'ೌ': 'au' };
+const KN_C = Object.fromEntries('ಕ ka|ಖ kha|ಗ ga|ಘ gha|ಙ nga|ಚ cha|ಛ chha|ಜ ja|ಝ jha|ಞ nya|ಟ ta|ಠ tha|ಡ da|ಢ dha|ಣ na|ತ ta|ಥ tha|ದ da|ಧ dha|ನ na|ಪ pa|ಫ pha|ಬ ba|ಭ bha|ಮ ma|ಯ ya|ರ ra|ಱ ra|ಲ la|ವ va|ಶ sha|ಷ sha|ಸ sa|ಹ ha|ಳ la|ೞ zha'.split('|').map((x) => x.split(' ')));
+const KN_D = { '೦': '0', '೧': '1', '೨': '2', '೩': '3', '೪': '4', '೫': '5', '೬': '6', '೭': '7', '೮': '8', '೯': '9' };
+function translit(text) {
+  const t = String(text || '').normalize('NFC'); let out = '';
+  for (let i = 0; i < t.length; i++) {
+    const c = t[i], n = t[i + 1];
+    if (KN_C[c]) { const base = KN_C[c]; out += n === '್' ? base.slice(0, -1) : KN_M[n] ? base.slice(0, -1) : base; if (n === '್') i++; }
+    else if (KN_M[c]) out += KN_M[c];
+    else if (KN_V[c]) out += KN_V[c];
+    else if (c === 'ಂ') out += /[ಕ-ಞಟ-ನ]/.test(n || '') ? 'n' : 'm'; else if (c === 'ಃ') out += 'h'; else if (c === 'ಁ') out += 'n';
+    else if (KN_D[c]) out += KN_D[c];
+    else if (c !== '್' && c !== '‌' && c !== '‍') out += c;
+  }
+  return out.replace(/\b[a-z]/g, (x) => x.toUpperCase());
+}
+
 function cleanBook(b) {
   const lv = String(b.level ?? '').trim();
   if (lv === '') return b;
@@ -229,13 +248,14 @@ function sortBooks(books) {
   return [...books].sort((a, b) => (y(a) < y(b) ? -1 : y(a) > y(b) ? 1 : a.identifier.localeCompare(b.identifier, 'en', { numeric: true })));
 }
 
-const qOf = (b) => [b.title, b.author, b.publisher, b.tags, b.level, volOf(b), issOf(b), b.identifier].join(' ').normalize('NFC').toLowerCase();
+const qOf = (b) => [b.title, b.titleEn, b.author, b.publisher, b.tags, b.level, volOf(b), issOf(b), b.identifier].join(' ').normalize('NFC').toLowerCase();
 // Bump when the portal template gains something worth rolling out to existing portals.
 // 1 = the original design (carries no marker), 2 = centred white design, SOK credit, paged loading, search index,
 // 3 = one flat list (no per-year sections), comma-separated subject tags, 4 = logo left with the title centred,
 // 5 = subject topic filters, each item's own IA description on its card,
-// 6 = volumes as a filter (All shows every item in one list).
-const DESIGN_VERSION = 7;
+// 6 = volumes as a filter (All shows every item in one list), 7 = extra logos and an author box,
+// 8 = optional Roman transliteration of titles.
+const DESIGN_VERSION = 8;
 const PAGE = 30; // cards per page; later pages load as the reader scrolls
 function cardHtml(b, h, ui, read) {
   const vol = volOf(b), iss = issOf(b), id = esc(b.identifier);
@@ -245,7 +265,7 @@ function cardHtml(b, h, ui, read) {
   return `<li class="card" data-id="${id}" data-year="${esc(yearOf(b) || 'unknown')}" data-vol="${esc(vol)}">
 <a class="cover open" data-id="${id}" data-title="${esc(b.title)}" href="${esc(b.url)}" target="_blank" rel="noopener" tabindex="-1" aria-hidden="true"><img src="${esc(b.cover)}" alt="" loading="lazy" decoding="async" width="300" height="400"></a>
 <${h}>${open('t', esc(b.title))}</${h}>
-${author ? `<p class="meta">${author}</p>` : ''}${facts ? `<p class="meta">${facts}</p>` : ''}${b.note ? `<p class="note" tabindex="0" role="button" aria-expanded="false">${esc(b.note)}</p>` : ''}
+${b.titleEn ? `<p class="roman" lang="en">${esc(b.titleEn)}</p>` : ''}${author ? `<p class="meta">${author}</p>` : ''}${facts ? `<p class="meta">${facts}</p>` : ''}${b.note ? `<p class="note" tabindex="0" role="button" aria-expanded="false">${esc(b.note)}</p>` : ''}
 <p class="links">${open('read', esc(read))}<a href="https://archive.org/download/${id}" target="_blank" rel="noopener">${ui.DOWNLOAD}</a>${safeUrl(b.license) ? `<a href="${safeUrl(b.license)}" target="_blank" rel="noopener">${esc(licenseLabel(b.license, ui.LICENSE))}</a>` : ''}</p>
 </li>`;
 }
@@ -568,6 +588,7 @@ async function api(req, res, url) {
     }
     return send(res, 200, r);
   }
+  if (name === 'translit') return send(res, 200, { books: (b.books || []).map((x) => ({ ...x, titleEn: x.titleEn || translit(x.title) })) });
   if (name === 'asset') { // POST /api/asset/<slug>/<logo|favicon>
     const kind = url.pathname.split('/')[4];
     if (!/^[a-z0-9-]+$/.test(slug) || !['logo', 'favicon'].includes(kind)) throw new Error('bad asset');
@@ -652,4 +673,4 @@ if (require.main === module) {
   }
   server.listen(PORT, HOST, () => console.log(`portal-builder → http://${HOST}:${PORT}`));
 }
-module.exports = { extractBranding, logosHtml, authorHtml, buildQuery, checkBooks, cleanBook, pickCollection, renderList, refreshBooks, DESIGN_VERSION, fromOldSite, build, merge, toBook, server, authorized };
+module.exports = { translit, extractBranding, logosHtml, authorHtml, buildQuery, checkBooks, cleanBook, pickCollection, renderList, refreshBooks, DESIGN_VERSION, fromOldSite, build, merge, toBook, server, authorized };

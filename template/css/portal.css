@@ -51,6 +51,7 @@ main { max-width: 1180px; margin: 0 auto; padding: 0 20px 40px; outline: none; }
 .cover { display: block; aspect-ratio: 3 / 4; background: var(--soft); border: 1px solid var(--line); border-radius: 3px; overflow: hidden; }
 .cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .card h2, .card h3 { font-size: .98rem; line-height: 1.4; margin: 12px 0 2px; font-weight: 600; letter-spacing: 0; color: var(--ink); }
+.card .roman { margin: 0 0 4px; font-size: .8rem; color: var(--mute); }
 .card h2 a, .card h3 a { text-decoration: none; }
 .card h2 a:hover, .card h3 a:hover { text-decoration: underline; }
 .meta { margin: 0; color: var(--mute); font-size: .82rem; }
