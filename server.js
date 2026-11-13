@@ -35,7 +35,7 @@ async function iaFetch(q, max = Infinity) {
   for (let page = 1; ; page++) {
     const u = new URL('https://archive.org/advancedsearch.php');
     u.searchParams.set('q', q);
-    for (const f of ['identifier', 'title', 'creator', 'publisher', 'description', 'subject', 'date', 'year', 'imagecount', 'licenseurl', 'volume', 'issue', 'collection']) u.searchParams.append('fl[]', f);
+    for (const f of ['identifier', 'title', 'creator', 'publisher', 'description', 'subject', 'date', 'year', 'imagecount', 'licenseurl', 'volume', 'issue', 'collection', 'language']) u.searchParams.append('fl[]', f);
     u.searchParams.append('sort[]', 'identifier asc');
     u.searchParams.set('rows', '500'); u.searchParams.set('page', page); u.searchParams.set('output', 'json');
     const r = await fetch(u);
@@ -122,6 +122,11 @@ function cleanBook(b) {
   if (YEAR.test(lv)) return typeof b.level === 'number' ? b : { ...b, level: Number(lv) };
   return { ...b, level: Number(idYear(b.identifier)) || '', tags: normTags([b.tags, lv]) };
 }
+// IA gives "Kannada", "kan" or "eng"; keep one English name per language (shown in Kannada on Kannada portals).
+const LANGS = { kan: 'Kannada', eng: 'English', san: 'Sanskrit', hin: 'Hindi', tel: 'Telugu', tam: 'Tamil', mal: 'Malayalam', mar: 'Marathi', tul: 'Tulu', kok: 'Konkani', urd: 'Urdu', ben: 'Bengali', guj: 'Gujarati', pan: 'Punjabi' };
+const LANG_KN = { Kannada: 'ಕನ್ನಡ', English: 'ಇಂಗ್ಲಿಷ್', Sanskrit: 'ಸಂಸ್ಕೃತ', Hindi: 'ಹಿಂದಿ', Telugu: 'ತೆಲುಗು', Tamil: 'ತಮಿಳು', Malayalam: 'ಮಲಯಾಳಂ', Marathi: 'ಮರಾಠಿ', Tulu: 'ತುಳು', Konkani: 'ಕೊಂಕಣಿ' };
+const langName = (v) => { const t = String(v || '').trim(); return LANGS[t.toLowerCase().slice(0, 3)] && t.length <= 3 ? LANGS[t.toLowerCase()] : t ? t[0].toUpperCase() + t.slice(1).toLowerCase() : ''; };
+const langOf = (b) => langName(b.language);
 function toBook(d, info) {
   const author = arr(d.creator).join(', ');
   return {
@@ -140,11 +145,12 @@ function toBook(d, info) {
     license: arr(d.licenseurl)[0] || '',
     volume: String(arr(d.volume)[0] || ''),
     issue: String(arr(d.issue)[0] || ''),
+    language: langName(arr(d.language)[0]),
   };
 }
 
 // Refresh: archive.org wins, but only for fields it actually has (publication year, title, author, ...).
-const REFRESH = ['note', 'title', 'author', 'publisher', 'tags', 'level', 'authorUrl', 'pages', 'license', 'volume', 'issue'];
+const REFRESH = ['language', 'note', 'title', 'author', 'publisher', 'tags', 'level', 'authorUrl', 'pages', 'license', 'volume', 'issue'];
 function refreshBooks(books, fresh) {
   let n = 0;
   const out = books.map((b) => {
@@ -244,10 +250,10 @@ function validate(p) {
 const safeUrl = (u) => (/^https?:\/\//.test(u || '') ? esc(u) : '');
 
 const UI = {
-  en: { SEARCH: 'Search title, author, year…', SEARCHLABEL: 'Search', ALL: 'All', TOPICS: 'Topics', ALLTOPICS: 'All topics', ALLVOLS: 'All volumes', RANDOM: 'Random issue', SKIP: 'Skip to the list',
+  en: { SEARCH: 'Search title, author, year…', SEARCHLABEL: 'Search', ALL: 'All', TOPICS: 'Topics', ALLTOPICS: 'All topics', ALLVOLS: 'All volumes', ALLLANGS: 'All languages', RANDOM: 'Random issue', SKIP: 'Skip to the list',
     ABOUT: 'About this collection', NONE: 'Nothing matches your search.', PREV: 'Previous', NEXT: 'Next', CLOSE: 'Close',
     NEWTAB: 'Open in new tab', ITEMS: 'items', PAGES: 'pages', DOWNLOAD: 'Download', VOL: 'Vol.', ISSUE: 'No.', UNKNOWN: 'Year unknown', LICENSE: 'Licence' },
-  kn: { SEARCH: 'ಶೀರ್ಷಿಕೆ, ಲೇಖಕ, ವರ್ಷ ಹುಡುಕಿ…', SEARCHLABEL: 'ಹುಡುಕಿ', ALL: 'ಎಲ್ಲಾ', TOPICS: 'ವಿಷಯಗಳು', ALLTOPICS: 'ಎಲ್ಲಾ ವಿಷಯಗಳು', ALLVOLS: 'ಎಲ್ಲಾ ಸಂಪುಟಗಳು', RANDOM: 'ಯಾದೃಚ್ಛಿಕ ಸಂಚಿಕೆ', SKIP: 'ಪಟ್ಟಿಗೆ ಹೋಗಿ',
+  kn: { SEARCH: 'ಶೀರ್ಷಿಕೆ, ಲೇಖಕ, ವರ್ಷ ಹುಡುಕಿ…', SEARCHLABEL: 'ಹುಡುಕಿ', ALL: 'ಎಲ್ಲಾ', TOPICS: 'ವಿಷಯಗಳು', ALLTOPICS: 'ಎಲ್ಲಾ ವಿಷಯಗಳು', ALLVOLS: 'ಎಲ್ಲಾ ಸಂಪುಟಗಳು', ALLLANGS: 'ಎಲ್ಲಾ ಭಾಷೆಗಳು', RANDOM: 'ಯಾದೃಚ್ಛಿಕ ಸಂಚಿಕೆ', SKIP: 'ಪಟ್ಟಿಗೆ ಹೋಗಿ',
     ABOUT: 'ಈ ಸಂಗ್ರಹದ ಬಗ್ಗೆ', NONE: 'ಹುಡುಕಾಟಕ್ಕೆ ಹೊಂದುವ ಸಂಚಿಕೆಗಳಿಲ್ಲ.', PREV: 'ಹಿಂದಿನದು', NEXT: 'ಮುಂದಿನದು', CLOSE: 'ಮುಚ್ಚಿ',
     NEWTAB: 'ಹೊಸ ಟ್ಯಾಬ್‌ನಲ್ಲಿ ತೆರೆಯಿರಿ', ITEMS: 'ಸಂಚಿಕೆಗಳು', PAGES: 'ಪುಟಗಳು', DOWNLOAD: 'ಡೌನ್‌ಲೋಡ್', VOL: 'ಸಂಪುಟ', ISSUE: 'ಸಂಚಿಕೆ', UNKNOWN: 'ವರ್ಷ ತಿಳಿದಿಲ್ಲ', LICENSE: 'ಪರವಾನಗಿ' },
 };
@@ -274,15 +280,15 @@ const qOf = (b) => [b.title, b.titleEn, b.author, b.publisher, b.tags, b.level, 
 // 3 = one flat list (no per-year sections), comma-separated subject tags, 4 = logo left with the title centred,
 // 5 = subject topic filters, each item's own IA description on its card,
 // 6 = volumes as a filter (All shows every item in one list), 7 = extra logos and an author box,
-// 8 = optional Roman transliteration of titles.
-const DESIGN_VERSION = 8;
+// 8 = optional Roman transliteration of titles, 9 = language filter when items are in more than one language.
+const DESIGN_VERSION = 9;
 const PAGE = 30; // cards per page; later pages load as the reader scrolls
 function cardHtml(b, h, ui, read) {
   const vol = volOf(b), iss = issOf(b), id = esc(b.identifier);
   const author = b.author ? (safeUrl(b.authorUrl) ? `<a href="${safeUrl(b.authorUrl)}" target="_blank" rel="noopener">${esc(b.author)}</a>` : esc(b.author)) : '';
   const facts = [iss && `${ui.ISSUE} ${esc(iss)}`, b.pages && `${esc(b.pages)} ${ui.PAGES}`].filter(Boolean).join(' · ');
   const open = (cls, label) => `<a class="open ${cls}" data-id="${id}" data-title="${esc(b.title)}" href="${esc(b.url)}" target="_blank" rel="noopener">${label}</a>`;
-  return `<li class="card" data-id="${id}" data-year="${esc(yearOf(b) || 'unknown')}" data-vol="${esc(vol)}">
+  return `<li class="card" data-id="${id}" data-year="${esc(yearOf(b) || 'unknown')}" data-vol="${esc(vol)}" data-lang="${esc(langOf(b))}">
 <a class="cover open" data-id="${id}" data-title="${esc(b.title)}" href="${esc(b.url)}" target="_blank" rel="noopener" tabindex="-1" aria-hidden="true"><img src="${esc(b.cover)}" alt="" loading="lazy" decoding="async" width="300" height="400"></a>
 <${h}>${open('t', esc(b.title))}</${h}>
 ${b.titleEn ? `<p class="roman" lang="en">${esc(b.titleEn)}</p>` : ''}${author ? `<p class="meta">${author}</p>` : ''}${facts ? `<p class="meta">${facts}</p>` : ''}${b.note ? `<p class="note" tabindex="0" role="button" aria-expanded="false">${esc(b.note)}</p>` : ''}
@@ -296,6 +302,13 @@ function renderList(books, ui, read) {
 }
 
 // Volumes as their own filter (numeric order); only when there are at least two.
+function languagesHtml(books, ui) {
+  const langs = [...new Set(books.map(langOf).filter(Boolean))].sort();
+  if (langs.length < 2) return '';
+  const pill = (val, label, on) => `<button type="button" class="pill" data-lang="${esc(val)}" aria-pressed="${on}">${esc(label)}</button>`;
+  const show = (l) => (ui === UI.kn && LANG_KN[l]) || l;
+  return pill('any', ui.ALLLANGS, true) + langs.map((l) => pill(l, show(l), false)).join('');
+}
 function volumesHtml(books, ui) {
   const vols = [...new Set(books.map(volOf).filter(Boolean))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
   if (vols.length < 2) return '';
@@ -380,7 +393,7 @@ function build(p) {
     LANG: esc(p.lang || 'kn'), TITLE: esc(p.title), TAGLINE: esc(p.tagline), DESC: esc(p.description),
     AUTHOR: esc(p.orgName), SITE: site, OGIMG: esc(sorted[0]?.cover || ''), GA: GA(p.gaId) || '',
     PARTNERS: partnersHtml(p.partners), LOGOS: logosHtml(p.logos), AUTHORBOX: authorHtml(p), CREDIT: creditHtml(p),
-    LIST: renderList(sorted.slice(0, PAGE), ui, read) + (sorted.length > PAGE ? '<div id="more" data-pages="' + Math.ceil(sorted.length / PAGE) + '"></div>' : ''), PILLS: pillsHtml(p.books, ui), TOPICS: topicsHtml(p.books, ui), VOLS: volumesHtml(p.books, ui), COUNT: `${p.books.length} / ${p.books.length} ${esc(ui.ITEMS)}`,
+    LIST: renderList(sorted.slice(0, PAGE), ui, read) + (sorted.length > PAGE ? '<div id="more" data-pages="' + Math.ceil(sorted.length / PAGE) + '"></div>' : ''), PILLS: pillsHtml(p.books, ui), TOPICS: topicsHtml(p.books, ui), VOLS: volumesHtml(p.books, ui), LANGS: languagesHtml(p.books, ui), COUNT: `${p.books.length} / ${p.books.length} ${esc(ui.ITEMS)}`,
     LDJSON: jsonLd(p, site, sorted), FRAME: String(p.openMode === 'frame'), TJSON: JSON.stringify({ items: ui.ITEMS }).replace(/</g, '\\u003c'),
     SOK: `${fs.existsSync(path.join(TPL, 'img', 'sok-logo.png')) ? '<img src="./img/sok-logo.png" alt="">' : ''}<span>A <a href="https://archive.org/details/ServantsOfKnowledge" target="_blank" rel="noopener">Servants of Knowledge</a> Initiative</span>`,
     DESIGN: DESIGN_VERSION, READ: esc(read), ...Object.fromEntries(Object.entries(ui).map(([k, t]) => ['T_' + k, esc(t)])),
@@ -392,7 +405,7 @@ function build(p) {
   fs.rmSync(path.join(dir, 'p'), { recursive: true, force: true });
   if (sorted.length > PAGE) fs.mkdirSync(path.join(dir, 'p'));
   for (let i = PAGE, n = 1; i < sorted.length; i += PAGE, n++) fs.writeFileSync(path.join(dir, 'p', n + '.html'), renderList(sorted.slice(i, i + PAGE), ui, read));
-  fs.writeFileSync(path.join(dir, 'search.json'), JSON.stringify(sorted.map((b, i) => [b.identifier, yearOf(b) || 'unknown', qOf(b), Math.floor(i / PAGE), tagsOf(b), volOf(b)])));
+  fs.writeFileSync(path.join(dir, 'search.json'), JSON.stringify(sorted.map((b, i) => [b.identifier, yearOf(b) || 'unknown', qOf(b), Math.floor(i / PAGE), tagsOf(b), volOf(b), langOf(b)])));
   fs.writeFileSync(path.join(dir, 'issues.json'), JSON.stringify({ books: p.books }, null, 2));
   fs.writeFileSync(path.join(dir, 'sitemap.xml'), `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>${site}/</loc><lastmod>${new Date().toISOString().slice(0, 10)}</lastmod></url></urlset>\n`);
   fs.writeFileSync(path.join(dir, 'robots.txt'), `User-agent: *\nAllow: /\nSitemap: ${site}/sitemap.xml\n`);
@@ -696,4 +709,4 @@ if (require.main === module) {
   }
   server.listen(PORT, HOST, () => console.log(`portal-builder → http://${HOST}:${PORT}`));
 }
-module.exports = { creditHtml, translit, extractBranding, logosHtml, authorHtml, buildQuery, checkBooks, cleanBook, pickCollection, renderList, refreshBooks, DESIGN_VERSION, fromOldSite, build, merge, toBook, server, authorized };
+module.exports = { languagesHtml, langName, creditHtml, translit, extractBranding, logosHtml, authorHtml, buildQuery, checkBooks, cleanBook, pickCollection, renderList, refreshBooks, DESIGN_VERSION, fromOldSite, build, merge, toBook, server, authorized };

@@ -112,4 +112,11 @@ assert.strictEqual(translit('ಸಂಚಯ ಕನ್ನಡ'), 'Sanchaya Kannada')
   assert.ok(/Sanchaya<\/a> \| <a href="https:\/\/sanchifoundation\.org[^>]*>Sanchi Foundation<\/a> in collaboration with <a href="https:\/\/research\.servantsofknowledge\.in/.test(c) && !c.includes('Some Press'));
 }
 { const q = require('./server').buildQuery(['nsn.veralu0000drsh_a9y8', 'nsn.malaan0000drsh_u1n0', 'nsn.taanda0000drsh', 'nsn.gormati0000drsh_d3b9', 'nsn.patragalu0000drsh', 'nsn.charaga0000drsh_e9o8', 'nsn.guddajja0000drsh_g8g8', 'nsn.kattalukaraguvam0000shan_d8u0', 'nsn.indianenglishint0000drsh', 'nsn.reunderstandings0000drsh'], ''); assert.deepStrictEqual(q, { prefix: 'nsn', query: 'identifier:nsn*' }); }
+{
+  const S = require('./server');
+  assert.strictEqual(S.languagesHtml([{ language: 'Kannada' }, { language: 'kan' }], { ALLLANGS: 'All' }), '');
+  const h = S.languagesHtml([{ language: 'kan' }, { language: 'English' }, { language: 'eng' }], { ALLLANGS: 'All languages' });
+  assert.ok(h.includes('data-lang="English"') && h.includes('data-lang="Kannada"') && h.includes('All languages'));
+  assert.strictEqual(S.langName('san'), 'Sanskrit'); assert.strictEqual(S.langName('Tulu'), 'Tulu');
+}
 console.log('ok');
