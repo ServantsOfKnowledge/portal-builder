@@ -119,4 +119,11 @@ assert.strictEqual(translit('ಸಂಚಯ ಕನ್ನಡ'), 'Sanchaya Kannada')
   assert.ok(h.includes('data-lang="English"') && h.includes('data-lang="Kannada"') && h.includes('All languages'));
   assert.strictEqual(S.langName('san'), 'Sanskrit'); assert.strictEqual(S.langName('Tulu'), 'Tulu');
 }
+{
+  const old = '<div class="navbar"><img src="./img/gandhi-bhavan-logo.jpg" alt="Gandhi Bhavan"><img src="./img/logo_sanchaya.png" alt="Sanchaya"></div><div class="academic-logo"><img src="/img/shilpakale.jpg" /></div><img src="./img/level.png"><img src="./img/social_twitter.png"><img src="./img/rxintro.jpg">'
+    + '<div class="col-4"><div class="span2"><img src="./img/org-logo.png" width="100"/><h4>ORG <br/>INTRODUCTION</h4></div></div><div class="col-8"><p>' + 'About the organisation. '.repeat(8) + '</p></div>';
+  const b = extractBranding(old);
+  assert.strictEqual(b.logos, 'Gandhi Bhavan |  | ./img/gandhi-bhavan-logo.jpg\n |  | ./img/shilpakale.jpg\n |  | ./img/org-logo.png');
+  assert.strictEqual(b.authorImage, ''); assert.strictEqual(b.authorName, 'ORG INTRODUCTION'); assert.ok(b.authorBio.startsWith('About the organisation'));
+}
 console.log('ok');

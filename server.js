@@ -1,7 +1,7 @@
 // Local portal builder: edits project configs, pulls items from archive.org,
 // renders the static portal, and pushes it to GitHub Pages via git + gh.
 const http = require('http'), fs = require('fs'), path = require('path');
-const { execFile } = require('child_process'), { promisify } = require('util');
+const { execFile, execFileSync } = require('child_process'), { promisify } = require('util');
 const run = promisify(execFile);
 
 const ROOT = __dirname;
@@ -355,7 +355,7 @@ function partnersHtml(text) {
 }
 
 // "Name | link | image" per line; image is an https URL or a file copied into img/
-const imgSrc = (u) => (/^https?:\/\//.test(u || '') ? esc(u) : /^(?:\.\/)?img\/[\w.-]+$/.test(u || '') ? './' + esc(u.replace(/^\.\//, '')) : '');
+const imgSrc = (u) => (/^https?:\/\//.test(u || '') ? esc(u) : /^(?:\.?\/)?img\/[\w.-]+$/.test(u || '') ? './' + esc(u.replace(/^\.?\//, '')) : '');
 function logosHtml(text) {
   return String(text || '').split('\n').map((l) => l.split('|').map((x) => x.trim())).filter(([, , i]) => imgSrc(i))
     .map(([n, u, i]) => { const im = `<img src="${imgSrc(i)}" alt="${esc(n)}" height="40">`; return safeUrl(u) ? `<a href="${safeUrl(u)}" target="_blank" rel="noopener">${im}</a>` : im; }).join('');
@@ -499,15 +499,23 @@ function extractBranding(html) {
   }
   if (!author.authorImage) { // no author class: an image, then a heading, then a substantial paragraph, as in the old col-4 / col-8 layout
     const m = /<img\b[^>]*\bsrc=["']([^"']+)["'][^>]*>\s*<h([2-5])[^>]*>([\s\S]*?)<\/h\2>[\s\S]{0,400}?<p[^>]*>([\s\S]*?)<\/p>/i.exec(html.replace(/<!--[\s\S]*?-->/g, ''));
-    if (m && !/\{\{|logo|archive\.org/i.test(m[1]) && strip(m[4]).length > 80) Object.assign(author, { authorImage: m[1], authorName: strip(m[3].replace(/<br\s*\/?>/gi, ' ')), authorBio: strip(m[4]) });
+    if (m && !/\{\{|archive\.org/i.test(m[1]) && strip(m[4]).length > 80) Object.assign(author, { authorImage: m[1], authorName: strip(m[3].replace(/<br\s*\/?>/gi, ' ')), authorBio: strip(m[4]) });
   }
+  // An intro picture that is really an organisation logo (named *logo*, or also used in the header) belongs with the logos, not in a round author photo.
+  const used = (src) => html.split(src).length - 1;
+  const asLogo = author.authorImage && (/logo/i.test(author.authorImage) || used(author.authorImage) >= 2) ? author.authorImage : '';
+  if (asLogo) author.authorImage = '';
+  // The old template's stock images, and Sanchaya / Sanchi / Servants of Knowledge (credited in the footer already), are not "extra".
+  const STOCK = /(^|\/)(logo\.png|logo_(sanchaya|jsbooks|pythonbooks)\.png|level\.png|rxintro\.jpg|social_[a-z]+\.png|glyphicons[^/]*|sanchaya[^/]*|sanchi[^/]*|servants[^/]*|sok-logo[^/]*)$/i;
+  const OWN = /sanchaya\.org|sanchifoundation\.org|servantsofknowledge|sanchi-logo|domain=sanchaya\.org/i;
   const seen = new Set(), lines = [];
   for (const m of html.matchAll(/(?:<a\b[^>]*href=["']([^"']*)["'][^>]*>\s*)?<img\b([^>]*)>/gi)) {
-    const src = (/\bsrc=["']([^"']+)/i.exec(m[2]) || [])[1] || '', alt = strip((/\balt=["']([^"']*)/i.exec(m[2]) || [])[1] || '');
-    if (!src || /archive\.org\/services\/img|\{\{|(^|\/)logo\.png$|sok-logo|\/ico\/|favicon\.ico|\.svg\?.*badge/i.test(src) || src === author.authorImage || seen.has(src)) continue;
+    const src = (/\bsrc=["']([^"']+)["']/i.exec(m[2]) || [])[1] || '', alt = strip((/\balt=["']([^"']*)/i.exec(m[2]) || [])[1] || '');
+    if (!src || /archive\.org\/services\/img|\{\{|\/ico\/|favicon\.ico|\.svg\?.*badge/i.test(src) || STOCK.test(src.split('?')[0]) || OWN.test(src + ' ' + (m[1] || '')) || (src === author.authorImage) || seen.has(src)) continue;
     seen.add(src);
-    lines.push([alt, /^https?:/.test(m[1] || '') ? m[1] : '', src].join(' | '));
+    lines.push([alt, /^https?:/.test(m[1] || '') ? m[1] : '', src.replace(/^\/img\//, './img/')].join(' | '));
   }
+  author.authorImage = author.authorImage.replace(/^\/img\//, './img/');
   return { logos: lines.join('\n'), ...author };
 }
 
@@ -544,10 +552,19 @@ async function importPortal(owner, repo, log) {
   const logo = path.join(dir, 'img', 'logo.png');
   if (fs.existsSync(logo)) { const a = path.join(DATA, 'assets', slug); fs.mkdirSync(a, { recursive: true }); fs.copyFileSync(logo, path.join(a, 'logo.png')); }
   const q0 = buildQuery(p.books.map((x) => x.identifier), ''); if (q0) Object.assign(p, q0);
+  // A portal that was already updated has lost its old header logos and intro in the live files; the oldest backup branch still has them.
+  let backup = '';
+  if (!p.logos && !p.authorName && !p.authorBio) {
+    const refs = (await run('git', ['branch', '-r', '--list', 'origin/backup-old-design-[0-9]*'], { cwd: dir })).stdout.split('\n').map((x) => x.trim()).filter(Boolean).sort();
+    try { if (refs[0]) { Object.assign(p, extractBranding((await run('git', ['show', `${refs[0]}:index.html`], { cwd: dir, maxBuffer: 1e8 })).stdout)); backup = refs[0]; } } catch { /* no usable backup */ }
+  }
   const extra = path.join(DATA, 'assets', slug, 'extra');
   for (const ref of [p.authorImage, ...p.logos.split('\n').map((l) => l.split('|')[2]?.trim())]) {
-    const mm = /^(?:\.\/)?img\/([\w.-]+)$/.exec(ref || ''), src = mm && path.join(dir, 'img', mm[1]);
-    if (src && fs.existsSync(src)) { fs.mkdirSync(extra, { recursive: true }); fs.copyFileSync(src, path.join(extra, mm[1])); }
+    const mm = /^(?:\.?\/)?img\/([\w.-]+)$/.exec(ref || ''); if (!mm) continue;
+    const src = path.join(dir, 'img', mm[1]); let data;
+    if (fs.existsSync(src)) data = fs.readFileSync(src);
+    else if (backup) { try { data = execFileSync('git', ['show', `${backup}:img/${mm[1]}`], { cwd: dir, maxBuffer: 1e8 }); } catch { /* not in backup */ } }
+    if (data) { fs.mkdirSync(extra, { recursive: true }); fs.writeFileSync(path.join(extra, mm[1]), data); }
   }
   const db = load(); validate(p); db[slug] = { ...p, originalBooks: db[slug]?.originalBooks || p.books, ...Object.fromEntries(Object.entries(db[slug] || {}).filter(([k]) => ['modernised'].includes(k))) }; save(db);
   log.push(`Imported ${owner}/${repo}: ${p.books.length} items, ${p.sub}.${p.domain}`);
