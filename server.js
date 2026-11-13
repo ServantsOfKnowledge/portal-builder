@@ -332,11 +332,12 @@ function authorHtml(p) {
   return `<section class="author">${imgSrc(p.authorImage) ? `<img src="${imgSrc(p.authorImage)}" alt="${esc(p.authorName)}" width="96" height="96" loading="lazy">` : ''}<div>${p.authorName ? `<h2>${esc(p.authorName)}</h2>` : ''}${String(p.authorBio || '').split(/\n+/).filter(Boolean).map((t) => `<p>${esc(t)}</p>`).join('')}</div></section>`;
 }
 
+// The portal is published by Sanchaya and Sanchi Foundation with Servants of Knowledge; never the books' publisher.
+const LEGACY_FOOTER = 'This portal is built in collaboration with Servants of Knowledge and Sanchaya.';
 function creditHtml(p) {
-  if (p.footer) return esc(p.footer);
-  if (!p.orgName) return '';
-  const link = safeUrl(p.orgUrl);
-  return 'Published by ' + (link ? `<a href="${link}" target="_blank" rel="noopener">${esc(p.orgName)}</a>` : esc(p.orgName)) + '.';
+  if (p.footer && p.footer !== LEGACY_FOOTER) return esc(p.footer);
+  const a = (u, t) => `<a href="${u}" target="_blank" rel="noopener">${t}</a>`;
+  return `Published by ${a('https://sanchaya.org', 'Sanchaya')} | ${a('https://sanchifoundation.org', 'Sanchi Foundation')} in collaboration with ${a('https://research.servantsofknowledge.in', 'Servants of Knowledge')}.`;
 }
 
 function build(p) {
@@ -488,7 +489,7 @@ function fromOldSite(owner, repo, f) {
   const desc = strip(m(/<meta[^>]+name=["']description["'][^>]+content=["']([^"']*)/i));
   return {
     slug, owner, repo, sub: sub || slug, domain: rest.join('.') || 'sanchaya.net',
-    title, tagline: '', description: desc, orgName: books.find((b) => b.publisher)?.publisher || owner, orgUrl: '',
+    title, tagline: '', description: desc, orgName: 'Sanchaya', orgUrl: '',
     lang, readLabel: lang.startsWith('kn') ? 'ಓದಿರಿ' : 'Read', openMode: f.hasFrame ? 'frame' : 'tab',
     gaId: m(/\b(G-[A-Z0-9]{6,})\b/), ...extractBranding(f.html), partners: '', footer: '', query: '', info: '', books,
     projectName: '', prefix: '', collaborator: '', program: '', about: '',
@@ -673,4 +674,4 @@ if (require.main === module) {
   }
   server.listen(PORT, HOST, () => console.log(`portal-builder → http://${HOST}:${PORT}`));
 }
-module.exports = { translit, extractBranding, logosHtml, authorHtml, buildQuery, checkBooks, cleanBook, pickCollection, renderList, refreshBooks, DESIGN_VERSION, fromOldSite, build, merge, toBook, server, authorized };
+module.exports = { creditHtml, translit, extractBranding, logosHtml, authorHtml, buildQuery, checkBooks, cleanBook, pickCollection, renderList, refreshBooks, DESIGN_VERSION, fromOldSite, build, merge, toBook, server, authorized };

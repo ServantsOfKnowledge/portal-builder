@@ -33,7 +33,7 @@ let html = read(dir, 'index.html');
 assert.equal(host, 'selftest.sanchaya.net');
 assert(!/__[A-Z_]+__/.test(html), 'unreplaced placeholder');
 assert(html.includes('My &quot;Portal&quot;') && html.includes('https://selftest.sanchaya.net'));
-assert(html.includes('Published by <a href="https://seva.example"') && html.includes('Seva &lt;Trust&gt;'));
+assert(html.includes('Published by <a href="https://sanchaya.org"') && html.includes('research.servantsofknowledge.in') && !html.includes('Seva &lt;Trust&gt;.</p>'));
 assert(html.includes('sanchaya.org') && !html.includes('javascript:'), 'partners');
 assert(!html.includes('<script>alert(1)') && html.includes('&lt;script&gt;alert(1)'), 'titles are escaped');
 assert(!html.includes('googletagmanager') && !html.includes('id="viewer"') && !html.includes('maximum-scale'));
@@ -65,7 +65,7 @@ assert(!authorized(basic('admin', 'x'), 'admin', 'p:w') && !authorized(basic('bo
 { // importing an old portal
   const { fromOldSite } = require('./server.js');
   const p = fromOldSite('sanchaya', 'Janapada-Vichara', { issues: '{"books":[{"identifier":"a","publisher":"Pub"}]}', html: '<html lang="kn"><title>T</title><meta name="description" content="D">G-ABCDEF123', cname: 'jv.sanchaya.net\n', hasFrame: true });
-  assert(p.slug === 'janapada-vichara' && p.sub === 'jv' && p.domain === 'sanchaya.net' && p.title === 'T' && p.description === 'D' && p.orgName === 'Pub' && p.openMode === 'frame' && p.gaId === 'G-ABCDEF123' && p.books.length === 1);
+  assert(p.slug === 'janapada-vichara' && p.sub === 'jv' && p.domain === 'sanchaya.net' && p.title === 'T' && p.description === 'D' && p.orgName === 'Sanchaya' && p.openMode === 'frame' && p.gaId === 'G-ABCDEF123' && p.books.length === 1);
 }
 assert(html.includes('<meta name="portal-design" content="' + require('./server.js').DESIGN_VERSION + '">'));
 assert(toBook({ identifier: 'q', subject: ['a; b ;c', 'b', 'd,e'] }).tags === 'a,b,c,d,e', 'subjects split into comma tags');
@@ -106,4 +106,8 @@ assert(require('./server.js').pickCollection([{ collection: ['JaiGyan', 'Servant
 }
 assert.strictEqual(translit('ಡಿ. ಎಸ್. ನಾಗಭೂಷಣ ಸಮಗ್ರ ಸಾಹಿತ್ಯ'), 'Di. Es. Nagabhushana Samagra Sahitya');
 assert.strictEqual(translit('ಸಂಚಯ ಕನ್ನಡ'), 'Sanchaya Kannada');
+{
+  const c = require('./server').creditHtml({ orgName: 'Some Press', footer: '' });
+  assert.ok(/Sanchaya<\/a> \| <a href="https:\/\/sanchifoundation\.org[^>]*>Sanchi Foundation<\/a> in collaboration with <a href="https:\/\/research\.servantsofknowledge\.in/.test(c) && !c.includes('Some Press'));
+}
 console.log('ok');
