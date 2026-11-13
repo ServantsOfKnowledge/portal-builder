@@ -87,7 +87,8 @@ assert(require('./server.js').pickCollection([{ collection: ['JaiGyan', 'Servant
   const { buildQuery } = require('./server.js');
   assert(buildQuery(['jst.janapadavicharas0000sure_1990_07_v1', 'jst.janapadavicharas0000sure_1991_01_v2'], 'ServantsOfKnowledge').query === 'collection:ServantsOfKnowledge AND identifier:jst.janapadavicharas*');
   assert(buildQuery(['aaaab0000x', 'bbbbc0000y'], 'C').query === 'collection:C AND identifier:(aaaab* OR bbbbc*)');
-  assert(buildQuery(Array.from({ length: 12 }, (_, i) => 'it' + 'abcdefghijkl'[i] + 'x'.repeat(i + 3) + 'p0'), 'C') === null, 'too scattered: no query rather than the whole collection');
+  { const q = buildQuery(Array.from({ length: 12 }, (_, i) => 'it' + 'abcdefghijkl'[i] + 'x'.repeat(i + 3) + 'p0'), 'C'); assert(q && q.query.startsWith('collection:C AND identifier:("') && !q.query.includes('*'), 'scattered ids are listed, never the whole collection'); }
+{ const q = buildQuery(['kodaguaa', 'kodagubb', 'kodaguab', 'kodagucd', 'kodaguef', 'kodaguxyz', 'hingaraa', 'hingarab', 'hingaraz', 'lone0000abc', 'other0000xyz'].map((x) => x), ''); assert(q.query === 'identifier:(kodagu* OR hingara* OR "lone0000abc" OR "other0000xyz")', q.query); }
 }
 
 // extra logos and author box survive import and render
@@ -110,4 +111,5 @@ assert.strictEqual(translit('ಸಂಚಯ ಕನ್ನಡ'), 'Sanchaya Kannada')
   const c = require('./server').creditHtml({ orgName: 'Some Press', footer: '' });
   assert.ok(/Sanchaya<\/a> \| <a href="https:\/\/sanchifoundation\.org[^>]*>Sanchi Foundation<\/a> in collaboration with <a href="https:\/\/research\.servantsofknowledge\.in/.test(c) && !c.includes('Some Press'));
 }
+{ const q = require('./server').buildQuery(['nsn.veralu0000drsh_a9y8', 'nsn.malaan0000drsh_u1n0', 'nsn.taanda0000drsh', 'nsn.gormati0000drsh_d3b9', 'nsn.patragalu0000drsh', 'nsn.charaga0000drsh_e9o8', 'nsn.guddajja0000drsh_g8g8', 'nsn.kattalukaraguvam0000shan_d8u0', 'nsn.indianenglishint0000drsh', 'nsn.reunderstandings0000drsh'], ''); assert.deepStrictEqual(q, { prefix: 'nsn', query: 'identifier:nsn*' }); }
 console.log('ok');

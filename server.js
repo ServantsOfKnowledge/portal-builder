@@ -65,10 +65,30 @@ async function inferCollection(ids) {
 // 'jst.janapadavicharas0000sure_1990_07_v11_i1' -> stem 'jst.janapadavicharas'. Null if the items share no small set of stems.
 const stemOf = (id) => { const m = /^(.{4,}?[A-Za-z])\d/.exec(id); return m ? m[1] : id.replace(/[\d_.\-]+$/, '') || id; };
 function buildQuery(ids, collection) {
+  ids = ids.filter(Boolean);
+  const col = collection ? `collection:${collection} AND ` : '';
   const stems = [...new Set(ids.map(stemOf))], keep = stems.filter((s) => !stems.some((o) => o !== s && s.startsWith(o)));
-  if (!keep.length || keep.length > 8) return null;
-  const idPart = keep.length === 1 ? `identifier:${keep[0]}*` : `identifier:(${keep.map((s) => s + '*').join(' OR ')})`;
-  return { prefix: keep.length === 1 ? keep[0] : '', query: `${collection ? `collection:${collection} AND ` : ''}${idPart}` };
+  if (keep.length && keep.length <= 8) {
+    const idPart = keep.length === 1 ? `identifier:${keep[0]}*` : `identifier:(${keep.map((s) => s + '*').join(' OR ')})`;
+    return { prefix: keep.length === 1 ? keep[0] : '', query: `${col}${idPart}` };
+  }
+  // A shared namespace such as "nsn." in nsn.veralu0000drsh_a9y8: use it as the prefix, listing any item outside it.
+  const ns = new Map();
+  for (const id of ids) { const m = /^([A-Za-z0-9_-]{2,})\./.exec(id); if (m) ns.set(m[1], (ns.get(m[1]) || 0) + 1); }
+  const top = [...ns].sort((a, b) => b[1] - a[1])[0];
+  if (top && top[1] >= ids.length / 2) {
+    const out = ids.filter((id) => !id.startsWith(top[0] + '.')), terms = [top[0] + '*', ...out.map((x) => `"${x}"`)];
+    if (terms.join(' OR ').length <= 6000) return { prefix: out.length ? '' : top[0], query: `${col}identifier:${terms.length === 1 ? terms[0] : `(${terms.join(' OR ')})`}` };
+  }
+  // No tidy pattern: take every start (4+ letters) shared by 3 or more items, and list the remaining identifiers outright.
+  const groups = new Map();
+  for (const id of ids) if (id.length >= 4) groups.set(id.slice(0, 4), [...(groups.get(id.slice(0, 4)) || []), id]);
+  const lcp = (l) => l.reduce((x, y) => { let i = 0; while (x[i] && x[i] === y[i]) i++; return x.slice(0, i); });
+  const pre = [...groups.values()].filter((g) => g.length >= 3).map(lcp).filter((x) => x.length >= 4);
+  const rest = ids.filter((id) => !pre.some((x) => id.startsWith(x)));
+  const terms = [...pre.map((x) => x + '*'), ...rest.map((x) => `"${x}"`)];
+  if (!terms.length || terms.join(' OR ').length > 6000) return null; // too long to be a sensible query
+  return { prefix: pre.length === 1 && !rest.length ? pre[0] : '', query: `${col}identifier:(${terms.join(' OR ')})` };
 }
 
 // IA packs subjects as 'a; b; c'. Portals filter on comma-separated tags, so split on ; and , and rejoin with commas.
