@@ -99,4 +99,9 @@ assert(require('./server.js').pickCollection([{ collection: ['JaiGyan', 'Servant
   assert.match(authorHtml(b), /<h2>Kuvempu<\/h2><p>Poet\.<\/p>/);
   assert.strictEqual(logosHtml('x | | javascript:alert(1)'), '');
 }
+{
+  const b = extractBranding('<div class="col-4"><img src="./img/dsn.jpeg" width="100"/><h4>DSN <br/>(1952-2022)</h4></div><div class="col-8"><p>' + 'A long bio sentence. '.repeat(8) + '</p></div>');
+  assert.strictEqual(b.authorImage, './img/dsn.jpeg'); assert.strictEqual(b.authorName, 'DSN (1952-2022)'); assert.ok(b.authorBio.startsWith('A long bio'));
+  assert.strictEqual(b.logos, '');
+}
 console.log('ok');

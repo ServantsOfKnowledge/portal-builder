@@ -443,6 +443,10 @@ function extractBranding(html) {
     author.authorName = strip((/<h[1-6][^>]*>([\s\S]*?)<\/h[1-6]>/i.exec(blk[2]) || [])[1] || '');
     author.authorBio = strip(blk[2].replace(/<h[1-6][\s\S]*?<\/h[1-6]>/gi, ' ').replace(/<img[^>]*>/gi, ' ').replace(/<\/p>/gi, '\n'));
   }
+  if (!author.authorImage) { // no author class: an image, then a heading, then a substantial paragraph, as in the old col-4 / col-8 layout
+    const m = /<img\b[^>]*\bsrc=["']([^"']+)["'][^>]*>\s*<h([2-5])[^>]*>([\s\S]*?)<\/h\2>[\s\S]{0,400}?<p[^>]*>([\s\S]*?)<\/p>/i.exec(html.replace(/<!--[\s\S]*?-->/g, ''));
+    if (m && !/\{\{|logo|archive\.org/i.test(m[1]) && strip(m[4]).length > 80) Object.assign(author, { authorImage: m[1], authorName: strip(m[3].replace(/<br\s*\/?>/gi, ' ')), authorBio: strip(m[4]) });
+  }
   const seen = new Set(), lines = [];
   for (const m of html.matchAll(/(?:<a\b[^>]*href=["']([^"']*)["'][^>]*>\s*)?<img\b([^>]*)>/gi)) {
     const src = (/\bsrc=["']([^"']+)/i.exec(m[2]) || [])[1] || '', alt = strip((/\balt=["']([^"']*)/i.exec(m[2]) || [])[1] || '');
