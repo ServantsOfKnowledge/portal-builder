@@ -12,6 +12,10 @@
   aside h1 { font-size:15px; font-weight:600; margin:0; }
   aside button.item { display:block; width:100%; text-align:left; background:none; border:0; color:var(--mute); padding:7px 8px; border-radius:4px; cursor:pointer; font:inherit; }
   aside .grp { margin:14px 8px 4px; font-size:.68rem; letter-spacing:.05em; text-transform:uppercase; color:#999; }
+  aside button.item small { display:block; font-size:.72rem; color:var(--mute); }
+  aside button.item small.spin::before { content:''; display:inline-block; width:8px; height:8px; margin-right:6px; border:2px solid #bbb; border-top-color:#333; border-radius:50%; animation:sp .8s linear infinite; vertical-align:-1px; }
+  aside button.item small.rdy { color:#2a7a3b; }
+  @keyframes sp { to { transform:rotate(360deg); } }
   aside button.item:hover, aside button.item.on { color:var(--ink); background:#f5f5f5; }
   aside .new { margin-top:12px; color:var(--ink) !important; }
   main { flex:1; padding:24px 36px 60px; }
@@ -221,7 +225,9 @@ function renderList() {
       const b = document.createElement('button');
       b.className = 'item' + (cur && cur.slug === slug ? ' on' : '');
       b.textContent = projects[slug].title || slug;
-      b.onclick = () => openProject(projects[slug]);
+      const st = running[slug] ? ['spin', running[slug] + '…'] : done[slug] ? ['rdy', 'Finished: review and save'] : null;
+      if (st) { const s = document.createElement('small'); s.className = st[0]; s.textContent = st[1]; b.append(s); b.title = notes[slug] || st[1]; }
+      b.onclick = () => { openProject(done[slug] || projects[slug]); delete done[slug]; if (notes[slug]) { log(notes[slug]); delete notes[slug]; } renderList(); };
       list.append(b);
     });
   });
@@ -236,7 +242,7 @@ function showAsset(img, kind) {
 
 function openProject(p) {
   $('#previewLink').hidden = true;
-  cur = JSON.parse(JSON.stringify(p));
+  cur = (p.slug && running[p.slug] && objs[p.slug]) || JSON.parse(JSON.stringify(p)); // a running job keeps working on its own object
   cur.dirty = cur.dirty || (projects[cur.slug] && !cur.projectName ? Object.fromEntries(GEN.map((k) => [k, true])) : {});
   if (!cur.collection) cur.collection = DEFAULTS.collection;
   if (!cur.projectName && projects[cur.slug]) cur.projectName = cur.title;
@@ -281,130 +287,141 @@ function renderRows() {
   });
 }
 
-async function persist() {
-  readForm();
-  await api('PUT', 'projects', cur);
-  projects[cur.slug] = JSON.parse(JSON.stringify(cur));
-  form.slug.readOnly = true; renderList(); showLive(); $('#revertBtn').hidden = false;
+// Background jobs: one per portal. You can switch portals while one runs; its result lands on the portal that started it.
+const running = {}, done = {}, notes = {}, objs = {}; // slug -> label | finished-while-away project | last message
+const keyOf = (p) => (p && p.slug) || '(new)';
+async function persist(p = cur) {
+  if (p === cur) readForm();
+  await api('PUT', 'projects', p);
+  projects[p.slug] = JSON.parse(JSON.stringify(p));
+  if (p === cur) { form.slug.readOnly = true; showLive(); $('#revertBtn').hidden = false; }
+  renderList();
 }
-
-// Run an async action with the buttons disabled; surface errors in the log.
-async function busy(fn) {
-  const bs = [...document.querySelectorAll('button.b')]; bs.forEach((b) => (b.disabled = true));
-  try { await fn(); } catch (e) { log(e.message, 'err'); } finally { bs.forEach((b) => (b.disabled = false)); }
+// Buttons follow the portal on screen: disabled only while *that* portal is busy.
+function sync() {
+  const on = !!(cur && running[keyOf(cur)]);
+  document.querySelectorAll('button.b').forEach((b) => (b.disabled = on));
+  renderList();
 }
+// label shows in the sidebar; fn(p, say) works on the portal p that was open when the action started.
+async function busy(label, fn) {
+  const p = cur, key = keyOf(p);
+  if (running[key]) return;
+  if (p) readForm();
+  const say = (t, c) => { if (cur === p) log(t, c); else notes[key] = t; };
+  running[key] = label; objs[key] = p; sync();
+  try { await fn(p, say); } catch (e) { say(e.message, 'err'); }
+  finally { delete running[key]; sync(); }
+}
+// After a job changed p's items: refresh the table if p is on screen, otherwise keep p for when it is opened.
+const applied = (p) => { if (cur === p) renderRows(); else done[keyOf(p)] = p; renderList(); };
 
 $('#newBtn').onclick = () => openProject({ ...DEFAULTS, books: [] });
-form.onsubmit = (e) => { e.preventDefault(); busy(async () => { await persist(); log('Saved.', 'ok'); }); };
+form.onsubmit = (e) => { e.preventDefault(); busy('Saving', async (p, say) => { await persist(p); say('Saved.', 'ok'); }); };
 for (const n of ['projectName', 'prefix', 'collaborator', 'program', 'about', 'collection', 'lang']) form[n].addEventListener('input', generate);
 for (const k of GEN) form[k].addEventListener('input', (e) => { if (e.isTrusted) cur.dirty[k] = true; });
 $('#regenBtn').onclick = () => { cur.dirty = {}; generate(); log('Regenerated from the Start-here fields.', 'ok'); };
 for (const n of ['slug', 'sub', 'domain', 'owner', 'repo']) form[n].addEventListener('input', () => { readForm(); renderRows(); });
 
-$('#fetchBtn').onclick = () => busy(async () => {
-  readForm(); log('Querying archive.org…');
-  const r = await api('POST', 'fetch', { slug: cur.slug, query: cur.query, info: cur.info, books: cur.books });
-  cur.books = r.books; renderRows(); log(`${r.added} new item(s) added${r.removed ? `, ${r.removed} no longer on archive.org removed` : ''}. Original items are always kept. Review, then Save.`, 'ok');
+$('#fetchBtn').onclick = () => busy('Fetching from archive.org', async (p, say) => {
+  say('Querying archive.org…');
+  const r = await api('POST', 'fetch', { slug: p.slug, query: p.query, info: p.info, books: p.books });
+  p.books = r.books; applied(p); say(`${r.added} new item(s) added${r.removed ? `, ${r.removed} no longer on archive.org removed` : ''}. Original items are always kept. Review, then Save.`, 'ok');
 });
 
 // Logo / favicon: save the project first (so the slug exists), then upload.
 for (const [id, kind, prev] of [['#logo', 'logo', '#logoPrev'], ['#favicon', 'favicon', '#favPrev']]) {
-  $(id).onchange = (e) => busy(async () => {
+  $(id).onchange = (e) => busy('Uploading ' + kind, async (p, say) => {
     const f = e.target.files[0]; if (!f) return;
     if (!form.slug.value) throw new Error('Set the slug first');
-    await persist();
+    await persist(p);
     const dataUrl = await new Promise((ok) => { const r = new FileReader(); r.onload = () => ok(r.result); r.readAsDataURL(f); });
-    await api('POST', `asset/${cur.slug}/${kind}`, { dataUrl });
-    showAsset($(prev), kind); log(`${kind} stored.`, 'ok');
+    await api('POST', `asset/${p.slug}/${kind}`, { dataUrl });
+    if (cur === p) showAsset($(prev), kind); say(`${kind} stored.`, 'ok');
   });
 }
 
 // Open the tab first (a click-initiated window.open is allowed; after an await it is often blocked).
 // Build the IA query from the items this portal already has (never from the whole collection).
-async function buildQueryFromItems() {
-  const slug0 = cur.slug;
-  if (!projects[slug0]) return log('Save the portal first.', 'err');
-  log('Working out the query from the existing items…');
-  try {
-    const r = await api('POST', 'query/' + slug0, { books: cur.books });
-    if (!cur || cur.slug !== slug0) return;
-    if (r.error) return log(r.error, 'err');
-    cur.query = form.query.value = r.query; cur.collection = form.collection.value = r.collection;
-    if (r.prefix) cur.prefix = form.prefix.value = r.prefix;
-    delete cur.dirty.query;
-    log(`Query built from ${r.count} existing items (${r.source}): ${r.query}`, 'ok');
-  } catch (e) { log(e.message, 'err'); }
+async function buildQueryFromItems(p, say) {
+  if (!projects[p.slug]) return say('Save the portal first.', 'err');
+  say('Working out the query from the existing items…');
+  const r = await api('POST', 'query/' + p.slug, { books: p.books });
+  if (r.error) return say(r.error, 'err');
+  p.query = r.query; p.collection = r.collection; if (r.prefix) p.prefix = r.prefix; delete p.dirty.query;
+  if (cur === p) { form.query.value = r.query; form.collection.value = r.collection; if (r.prefix) form.prefix.value = r.prefix; } else done[keyOf(p)] = p;
+  say(`Query built from ${r.count} existing items (${r.source}): ${r.query}`, 'ok');
 }
-$('#translitBtn').onclick = () => busy(async () => {
-  const r = await api('POST', 'translit', { books: cur.books });
-  cur.books = r.books; renderRows(); log('Added English titles where missing. Edit any in the Items table, then Save.', 'ok');
+$('#translitBtn').onclick = () => busy('Transliterating', async (p, say) => {
+  const r = await api('POST', 'translit', { books: p.books });
+  p.books = r.books; applied(p); say('Added English titles where missing. Edit any in the Items table, then Save.', 'ok');
 });
-$('#refreshBtn').onclick = () => busy(async () => {
-  log('Refreshing year, title, author, publisher, subjects and descriptions from archive.org…');
-  const r = await api('POST', 'refresh', { books: cur.books });
-  cur.books = r.books; renderRows(); log(r.log.join('\n') + '\nReview the items, then Save.', 'ok');
+$('#refreshBtn').onclick = () => busy('Refreshing from archive.org', async (p, say) => {
+  say('Refreshing year, title, author, publisher, subjects, language and descriptions from archive.org…');
+  const r = await api('POST', 'refresh', { books: p.books });
+  p.books = r.books; applied(p); say(r.log.join('\n') + '\nReview the items, then Save.', 'ok');
 });
-$('#queryBtn').onclick = () => busy(buildQueryFromItems);
+$('#queryBtn').onclick = () => busy('Building query', buildQueryFromItems);
 
 // Checks before Preview / Launch / Update: items that no longer exist on archive.org, duplicates, missing titles.
 // Returns false if the user stops. Missing items are removed from the portal (they stay in "Revert to original items").
-async function preflight() {
-  log('Checking items against archive.org…');
-  const r = await api('POST', 'check', { slug: cur.slug, books: cur.books });
+async function preflight(p, say) {
+  say('Checking items against archive.org…');
+  const r = await api('POST', 'check', { slug: p.slug, books: p.books });
   const notes = [];
   if (r.duplicates.length) notes.push(`${r.duplicates.length} duplicate identifier(s): ${r.duplicates.slice(0, 5).join(', ')}`);
   if (r.noTitle.length) notes.push(`${r.noTitle.length} item(s) without a title`);
   if (r.noYear) notes.push(`${r.noYear} item(s) without a year (shown under Unknown)`);
   if (r.missing.length) {
     const list = r.missing.slice(0, 8).map((m) => `• ${m.identifier}${m.original ? ' (in the original list)' : ''}`).join('\n') + (r.missing.length > 8 ? `\n… and ${r.missing.length - 8} more` : '');
-    const drop = confirm(`${r.missing.length} of ${r.total} items are not on archive.org any more:\n\n${list}\n\nOK = remove them from the portal and continue.\nCancel = keep them as they are in issues.json and continue.`);
+    const drop = confirm(`${p.title || p.slug}: ${r.missing.length} of ${r.total} items are not on archive.org any more:\n\n${list}\n\nOK = remove them from the portal and continue.\nCancel = keep them as they are in issues.json and continue.`);
     if (drop) {
       const gone = new Set(r.missing.map((m) => m.identifier));
-      cur.books = cur.books.filter((b) => !gone.has(b.identifier)); renderRows(); await persist();
+      p.books = p.books.filter((b) => !gone.has(b.identifier)); applied(p); await persist(p);
       notes.unshift(`${r.missing.length} missing item(s) removed`);
     } else notes.unshift(`${r.missing.length} item(s) not on archive.org kept`);
   }
-  log(notes.length ? 'Checked: ' + notes.join('; ') : `Checked ${r.total} items: all present on archive.org.`, notes.length ? '' : 'ok');
+  say(notes.length ? 'Checked: ' + notes.join('; ') : `Checked ${r.total} items: all present on archive.org.`, notes.length ? '' : 'ok');
   return true;
 }
-$('#checkBtn').onclick = () => busy(async () => { await persist(); await preflight(); });
+$('#checkBtn').onclick = () => busy('Checking items', async (p, say) => { await persist(p); await preflight(p, say); });
 
 $('#previewBtn').onclick = () => {
   const w = window.open('', '_blank');
-  busy(async () => {
+  busy('Building preview', async (p, say) => {
     try {
-      await persist(); if (!(await preflight())) { if (w) w.close(); return; }
-      const r = await api('POST', 'build/' + cur.slug);
+      await persist(p); if (!(await preflight(p, say))) { if (w) w.close(); return; }
+      const r = await api('POST', 'build/' + p.slug);
       const url = location.origin + r.preview;
       if (w) w.location = url;
-      $('#previewLink').hidden = false;
-      $('#previewLink').innerHTML = `Local preview: <a href="${url}" target="_blank">${url}</a> (nothing is pushed until you click Launch)`;
-      log('Preview built locally.', 'ok');
+      if (cur === p) { $('#previewLink').hidden = false; $('#previewLink').innerHTML = `Local preview: <a href="${url}" target="_blank">${url}</a> (nothing is pushed until you click Launch)`; }
+      say('Preview built locally.', 'ok');
     } catch (e) { if (w) w.close(); throw e; }
   });
 };
 
-$('#launchBtn').onclick = () => busy(async () => {
-  await persist(); if (!(await preflight())) return;
-  const old = isOld(), where = `${cur.owner}/${cur.repo || cur.slug}`;
+const isOldP = (p) => !!(p && projects[p.slug] && p.imported && (projects[p.slug].designVersion || 1) < DESIGN);
+$('#launchBtn').onclick = () => busy('Publishing', async (p, say) => {
+  await persist(p); if (!(await preflight(p, say))) return;
+  const old = isOldP(p), where = `${p.owner}/${p.repo || p.slug}`;
   if (!confirm(old
-    ? `Publish ${where} with the new design (v${DESIGN})?\n\nThe current live design is first saved on a backup-old-design-* branch, then the new design and your items are pushed to ${cur.defaultBranch || 'master'} and gh-pages.\n\nHave you previewed it?`
+    ? `Publish ${where} with the new design (v${DESIGN})?\n\nThe current live design is first saved on a backup-old-design-* branch, then the new design and your items are pushed to ${p.defaultBranch || 'master'} and gh-pages.`
     : `Publish ${where}?\n\nThis commits and pushes to GitHub (master + gh-pages).\n\nHave you previewed it?`)) return;
-  log('Publishing…');
-  const r = await api('POST', (old ? 'modernise/' : 'launch/') + cur.slug);
-  log(r.log.join('\n'), r.ok ? 'ok' : 'err');
-  if (r.ok) { projects = await api('GET', 'projects'); cur = JSON.parse(JSON.stringify(projects[cur.slug])); showModernise(); renderList(); }
+  say('Publishing…');
+  const r = await api('POST', (old ? 'modernise/' : 'launch/') + p.slug);
+  say(r.log.join('\n'), r.ok ? 'ok' : 'err');
+  if (r.ok) { projects = await api('GET', 'projects'); if (cur === p) { cur = JSON.parse(JSON.stringify(projects[p.slug])); showModernise(); } renderList(); }
 });
 
-$('#revertBtn').onclick = () => busy(async () => {
-  log('Looking for the original items…');
-  const r = await api('POST', 'original/' + cur.slug);
-  if (!r.books.length) return log('No original items found.', 'err');
-  if (!confirm(`Replace the ${cur.books.length} current items with the ${r.books.length} original ones (${r.source})?\n\nNothing is saved or pushed until you click Save.`)) return log('—');
-  cur.books = r.books; renderRows(); log(`Restored ${r.books.length} original items from ${r.source}. Click Save to keep them.`, 'ok');
+$('#revertBtn').onclick = () => busy('Looking for original items', async (p, say) => {
+  say('Looking for the original items…');
+  const r = await api('POST', 'original/' + p.slug);
+  if (!r.books.length) return say('No original items found.', 'err');
+  if (!confirm(`${p.title || p.slug}: replace the ${p.books.length} current items with the ${r.books.length} original ones (${r.source})?\n\nNothing is saved or pushed until you click Save.`)) return say('—');
+  p.books = r.books; applied(p); say(`Restored ${r.books.length} original items from ${r.source}. Click Save to keep them.`, 'ok');
 });
 $('#dupBtn').onclick = () => openProject({ ...readForm(), slug: '', sub: '', repo: '', books: [], projectName: '', prefix: '', title: '', query: '', dirty: {} });
-$('#delBtn').onclick = () => busy(async () => {
+$('#delBtn').onclick = () => busy('Removing', async () => {
   if (!projects[cur.slug] || !confirm('Remove from this list? (The GitHub repo and local workspace folder are untouched.)')) return;
   await api('DELETE', 'projects/' + cur.slug); delete projects[cur.slug];
   cur = null; form.hidden = true; $('#empty').hidden = false; renderList();
@@ -425,10 +442,10 @@ const showModernise = () => {
 };
 // An imported portal on an older design is published the same way, as a design update: the old design is kept on a backup branch.
 const isOld = () => { const p = cur && projects[cur.slug]; return !!(p && p.imported && (p.designVersion || 1) < DESIGN); };
-const _open = openProject; openProject = (p) => { $('#ghPanel').hidden = true; _open(p); showModernise(); };
+const _open = openProject; openProject = (p) => { $('#ghPanel').hidden = true; _open(p); showModernise(); sync(); };
 
 $('#ghBtn').onclick = () => { form.hidden = true; $('#empty').hidden = true; $('#ghPanel').hidden = false; cur = null; renderList(); };
-$('#ghList').onclick = () => busy(async () => {
+$('#ghList').onclick = () => busy('Listing GitHub repos', async () => {
   const gl = (t, c = '') => { $('#ghLog').innerHTML = `<span class="${c}">${t.replace(/</g, '&lt;')}</span>`; };
   gl('Listing…');
   const r = await api('GET', 'gh?owner=' + encodeURIComponent($('#ghOwner').value.trim()));
@@ -442,7 +459,7 @@ $('#ghList').onclick = () => busy(async () => {
   $('#ghRows').hidden = $('#ghImport').hidden = !r.length;
   gl(r.length ? `${r.length} portals found.` : 'No portals (repos with issues.json) found.', r.length ? 'ok' : 'err');
 });
-$('#ghImport').onclick = () => busy(async () => {
+$('#ghImport').onclick = () => busy('Importing', async () => {
   const repos = [...document.querySelectorAll('#ghRows input:checked')].map((i) => i.value);
   if (!repos.length) return;
   $('#ghLog').textContent = 'Importing…';
