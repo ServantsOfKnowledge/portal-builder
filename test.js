@@ -1,6 +1,6 @@
 // Offline self-check: renders portals and verifies output. Run: node test.js
 const assert = require('assert'), fs = require('fs'), path = require('path');
-const { build, merge, toBook, authorized } = require('./server');
+const { build, merge, toBook, authorized, extractBranding, logosHtml, authorHtml } = require('./server');
 
 // --- IA mapping and merge
 const doc = { identifier: 'x_1999_v1', title: 'T "q" <b>', creator: ['A B'], year: 1999, description: '<p>hi  there</p>',
@@ -88,5 +88,15 @@ assert(require('./server.js').pickCollection([{ collection: ['JaiGyan', 'Servant
   assert(buildQuery(['jst.janapadavicharas0000sure_1990_07_v1', 'jst.janapadavicharas0000sure_1991_01_v2'], 'ServantsOfKnowledge').query === 'collection:ServantsOfKnowledge AND identifier:jst.janapadavicharas*');
   assert(buildQuery(['aaaab0000x', 'bbbbc0000y'], 'C').query === 'collection:C AND identifier:(aaaab* OR bbbbc*)');
   assert(buildQuery(Array.from({ length: 12 }, (_, i) => 'it' + 'abcdefghijkl'[i] + 'x'.repeat(i + 3) + 'p0'), 'C') === null, 'too scattered: no query rather than the whole collection');
+}
+
+// extra logos and author box survive import and render
+{
+  const b = extractBranding('<div class="author-box"><img src="./img/a.jpg"><h3>Kuvempu</h3><p>Poet.</p></div><a href="https://x.org"><img src="./img/org.png" alt="Org"></a><img src="./img/logo.png"><img src="https://archive.org/services/img/abc">');
+  assert.strictEqual(b.logos, 'Org | https://x.org | ./img/org.png');
+  assert.strictEqual(b.authorName, 'Kuvempu'); assert.strictEqual(b.authorImage, './img/a.jpg'); assert.strictEqual(b.authorBio, 'Poet.');
+  assert.match(logosHtml(b.logos), /<a href="https:\/\/x\.org"[^>]*><img src=".\/img\/org\.png"/);
+  assert.match(authorHtml(b), /<h2>Kuvempu<\/h2><p>Poet\.<\/p>/);
+  assert.strictEqual(logosHtml('x | | javascript:alert(1)'), '');
 }
 console.log('ok');

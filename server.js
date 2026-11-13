@@ -235,7 +235,7 @@ const qOf = (b) => [b.title, b.author, b.publisher, b.tags, b.level, volOf(b), i
 // 3 = one flat list (no per-year sections), comma-separated subject tags, 4 = logo left with the title centred,
 // 5 = subject topic filters, each item's own IA description on its card,
 // 6 = volumes as a filter (All shows every item in one list).
-const DESIGN_VERSION = 6;
+const DESIGN_VERSION = 7;
 const PAGE = 30; // cards per page; later pages load as the reader scrolls
 function cardHtml(b, h, ui, read) {
   const vol = volOf(b), iss = issOf(b), id = esc(b.identifier);
@@ -301,6 +301,17 @@ function partnersHtml(text) {
     `<li><a href="${safeUrl(u)}" target="_blank" rel="noopener">${safeUrl(img) ? `<img src="${safeUrl(img)}" alt="" loading="lazy" height="20"> ` : ''}${esc(n)}</a></li>`).join('') + '</ul>';
 }
 
+// "Name | link | image" per line; image is an https URL or a file copied into img/
+const imgSrc = (u) => (/^https?:\/\//.test(u || '') ? esc(u) : /^(?:\.\/)?img\/[\w.-]+$/.test(u || '') ? './' + esc(u.replace(/^\.\//, '')) : '');
+function logosHtml(text) {
+  return String(text || '').split('\n').map((l) => l.split('|').map((x) => x.trim())).filter(([, , i]) => imgSrc(i))
+    .map(([n, u, i]) => { const im = `<img src="${imgSrc(i)}" alt="${esc(n)}" height="40">`; return safeUrl(u) ? `<a href="${safeUrl(u)}" target="_blank" rel="noopener">${im}</a>` : im; }).join('');
+}
+function authorHtml(p) {
+  if (!p.authorBio && !p.authorImage && !p.authorName) return '';
+  return `<section class="author">${imgSrc(p.authorImage) ? `<img src="${imgSrc(p.authorImage)}" alt="${esc(p.authorName)}" width="96" height="96" loading="lazy">` : ''}<div>${p.authorName ? `<h2>${esc(p.authorName)}</h2>` : ''}${String(p.authorBio || '').split(/\n+/).filter(Boolean).map((t) => `<p>${esc(t)}</p>`).join('')}</div></section>`;
+}
+
 function creditHtml(p) {
   if (p.footer) return esc(p.footer);
   if (!p.orgName) return '';
@@ -318,6 +329,8 @@ function build(p) {
   const logo = path.join(assets, 'logo.png'), fav = path.join(assets, 'favicon.png');
   if (fs.existsSync(logo)) fs.copyFileSync(logo, path.join(dir, 'img', 'logo.png'));
   if (fs.existsSync(fav)) for (const n of ['favicon-32x32.png', 'android-chrome-192x192.png']) fs.copyFileSync(fav, path.join(dir, 'img', 'ico', n));
+  const extra = path.join(assets, 'extra');
+  if (fs.existsSync(extra)) fs.cpSync(extra, path.join(dir, 'img'), { recursive: true });
   const host = `${p.sub || p.slug}.${p.domain}`, site = 'https://' + host;
   const ui = UI[String(p.lang || 'en').split('-')[0]] || UI.en;
   const read = p.readLabel || 'Read';
@@ -325,7 +338,7 @@ function build(p) {
   const v = {
     LANG: esc(p.lang || 'kn'), TITLE: esc(p.title), TAGLINE: esc(p.tagline), DESC: esc(p.description),
     AUTHOR: esc(p.orgName), SITE: site, OGIMG: esc(sorted[0]?.cover || ''), GA: GA(p.gaId) || '',
-    PARTNERS: partnersHtml(p.partners), CREDIT: creditHtml(p),
+    PARTNERS: partnersHtml(p.partners), LOGOS: logosHtml(p.logos), AUTHORBOX: authorHtml(p), CREDIT: creditHtml(p),
     LIST: renderList(sorted.slice(0, PAGE), ui, read) + (sorted.length > PAGE ? '<div id="more" data-pages="' + Math.ceil(sorted.length / PAGE) + '"></div>' : ''), PILLS: pillsHtml(p.books, ui), TOPICS: topicsHtml(p.books, ui), VOLS: volumesHtml(p.books, ui), COUNT: `${p.books.length} / ${p.books.length} ${esc(ui.ITEMS)}`,
     LDJSON: jsonLd(p, site, sorted), FRAME: String(p.openMode === 'frame'), TJSON: JSON.stringify({ items: ui.ITEMS }).replace(/</g, '\\u003c'),
     SOK: `${fs.existsSync(path.join(TPL, 'img', 'sok-logo.png')) ? '<img src="./img/sok-logo.png" alt="">' : ''}<span>A <a href="https://archive.org/details/ServantsOfKnowledge" target="_blank" rel="noopener">Servants of Knowledge</a> Initiative</span>`,
@@ -420,6 +433,26 @@ async function listPortals(owner) {
 const slugOfRepo = (n) => n.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
 // Turn an old portal's files into a project config (best effort; everything stays editable).
+// Extra logos and an author image/bio found in an old index.html. Heuristic; the builder lets the user edit the result.
+function extractBranding(html) {
+  html = String(html || '');
+  const author = { authorName: '', authorImage: '', authorBio: '' };
+  const blk = /<(div|section|aside|figure)\b[^>]*(?:class|id)=["'][^"']*\b(?:author|bio|about-author)\b[^"']*["'][^>]*>([\s\S]*?)<\/\1>/i.exec(html);
+  if (blk && !blk[2].includes('{{')) {
+    author.authorImage = (/<img[^>]+src=["']([^"']+)/i.exec(blk[2]) || [])[1] || '';
+    author.authorName = strip((/<h[1-6][^>]*>([\s\S]*?)<\/h[1-6]>/i.exec(blk[2]) || [])[1] || '');
+    author.authorBio = strip(blk[2].replace(/<h[1-6][\s\S]*?<\/h[1-6]>/gi, ' ').replace(/<img[^>]*>/gi, ' ').replace(/<\/p>/gi, '\n'));
+  }
+  const seen = new Set(), lines = [];
+  for (const m of html.matchAll(/(?:<a\b[^>]*href=["']([^"']*)["'][^>]*>\s*)?<img\b([^>]*)>/gi)) {
+    const src = (/\bsrc=["']([^"']+)/i.exec(m[2]) || [])[1] || '', alt = strip((/\balt=["']([^"']*)/i.exec(m[2]) || [])[1] || '');
+    if (!src || /archive\.org\/services\/img|\{\{|(^|\/)logo\.png$|sok-logo|\/ico\/|favicon\.ico|\.svg\?.*badge/i.test(src) || src === author.authorImage || seen.has(src)) continue;
+    seen.add(src);
+    lines.push([alt, /^https?:/.test(m[1] || '') ? m[1] : '', src].join(' | '));
+  }
+  return { logos: lines.join('\n'), ...author };
+}
+
 function fromOldSite(owner, repo, f) {
   const j = JSON.parse(f.issues);
   const books = (Array.isArray(j) ? j : j.books || []).filter((b) => b && b.identifier).map((b) => cleanBook({ ...b, tags: normTags(b.tags) }));
@@ -433,7 +466,7 @@ function fromOldSite(owner, repo, f) {
     slug, owner, repo, sub: sub || slug, domain: rest.join('.') || 'sanchaya.net',
     title, tagline: '', description: desc, orgName: books.find((b) => b.publisher)?.publisher || owner, orgUrl: '',
     lang, readLabel: lang.startsWith('kn') ? 'ಓದಿರಿ' : 'Read', openMode: f.hasFrame ? 'frame' : 'tab',
-    gaId: m(/\b(G-[A-Z0-9]{6,})\b/), partners: '', footer: '', query: '', info: '', books,
+    gaId: m(/\b(G-[A-Z0-9]{6,})\b/), ...extractBranding(f.html), partners: '', footer: '', query: '', info: '', books,
     projectName: '', prefix: '', collaborator: '', program: '', about: '',
     dirty: { title: 1, tagline: 1, description: 1, orgName: 1, query: 1, info: 1, slug: 1 },
     imported: true, modernised: false,
@@ -452,6 +485,11 @@ async function importPortal(owner, repo, log) {
   p.defaultBranch = (await run('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: dir })).stdout.trim();
   const logo = path.join(dir, 'img', 'logo.png');
   if (fs.existsSync(logo)) { const a = path.join(DATA, 'assets', slug); fs.mkdirSync(a, { recursive: true }); fs.copyFileSync(logo, path.join(a, 'logo.png')); }
+  const extra = path.join(DATA, 'assets', slug, 'extra');
+  for (const ref of [p.authorImage, ...p.logos.split('\n').map((l) => l.split('|')[2]?.trim())]) {
+    const mm = /^(?:\.\/)?img\/([\w.-]+)$/.exec(ref || ''), src = mm && path.join(dir, 'img', mm[1]);
+    if (src && fs.existsSync(src)) { fs.mkdirSync(extra, { recursive: true }); fs.copyFileSync(src, path.join(extra, mm[1])); }
+  }
   const db = load(); validate(p); db[slug] = { ...p, originalBooks: db[slug]?.originalBooks || p.books, ...Object.fromEntries(Object.entries(db[slug] || {}).filter(([k]) => ['modernised'].includes(k))) }; save(db);
   log.push(`Imported ${owner}/${repo}: ${p.books.length} items, ${p.sub}.${p.domain}`);
   return slug;
@@ -610,4 +648,4 @@ if (require.main === module) {
   }
   server.listen(PORT, HOST, () => console.log(`portal-builder → http://${HOST}:${PORT}`));
 }
-module.exports = { buildQuery, checkBooks, cleanBook, pickCollection, renderList, refreshBooks, DESIGN_VERSION, fromOldSite, build, merge, toBook, server, authorized };
+module.exports = { extractBranding, logosHtml, authorHtml, buildQuery, checkBooks, cleanBook, pickCollection, renderList, refreshBooks, DESIGN_VERSION, fromOldSite, build, merge, toBook, server, authorized };
