@@ -472,7 +472,6 @@ async function modernise(p, log) {
   if (hasPages) await g('push', 'origin', `origin/gh-pages:refs/heads/backup-old-design-pages-${t}`);
   log.push(`Old design kept on branch backup-old-design-${t}`);
   await g('rm', '-rq', '--ignore-unmatch', '.');
-  p.books = await refreshFromIA(p.books, log);
   build(p);
   await g('add', '-A');
   if ((await run('git', ['status', '--porcelain'], { cwd: dir })).stdout.trim()) await g('commit', '-m', `Modernise portal design (old design kept on backup-old-design-${t})`);
@@ -555,6 +554,7 @@ async function api(req, res, url) {
     return send(res, 200, { books: p.originalBooks, source: p.originalSource || 'import' });
   }
   if (name === 'check') return send(res, 200, await checkBooks((b.books || []).filter((x) => x && x.identifier), (db[b.slug] || {}).originalBooks?.map((x) => x.identifier)));
+  if (name === 'refresh') { const log = []; const books = await refreshFromIA(b.books || [], log); return send(res, 200, { books, log }); }
   if (name === 'query') { // build the IA query from the items this portal already has (current, original, local repo copy, GitHub)
     const p = db[slug]; if (!p) throw new Error('save the portal first');
     const ids = new Set(), src = [];

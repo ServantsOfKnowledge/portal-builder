@@ -131,11 +131,11 @@
     <div class="bar">
       <button type="button" class="b" id="queryBtn">Build query from existing items</button>
       <button type="button" class="b" id="fetchBtn">Fetch items from IA</button>
+      <button type="button" class="b" id="refreshBtn">Refresh details from IA</button>
       <button type="submit" class="b">Save</button>
       <button type="button" class="b" id="checkBtn">Check items</button>
       <button type="button" class="b" id="previewBtn">Preview locally</button>
-      <button type="button" class="b pri" id="launchBtn">Launch / Push to GitHub</button>
-      <button type="button" class="b pri" id="modBtn" hidden>Modernise design &amp; push</button>
+      <button type="button" class="b pri" id="launchBtn">Publish to GitHub</button>
       <button type="button" class="b" id="dupBtn">Duplicate as new</button>
       <button type="button" class="b" id="revertBtn" hidden>Revert to original items</button>
       <button type="button" class="b" id="delBtn">Remove</button>
@@ -240,7 +240,6 @@ function openProject(p) {
   form.slug.readOnly = !!projects[cur.slug];
   showAsset($('#logoPrev'), 'logo'); showAsset($('#favPrev'), 'favicon');
   renderRows(); renderList(); log('—'); window.scrollTo(0, 0);
-  if (projects[cur.slug] && !cur.query) buildQueryFromItems();
 }
 
 function readForm() {
@@ -322,6 +321,11 @@ async function buildQueryFromItems() {
     log(`Query built from ${r.count} existing items (${r.source}): ${r.query}`, 'ok');
   } catch (e) { log(e.message, 'err'); }
 }
+$('#refreshBtn').onclick = () => busy(async () => {
+  log('Refreshing year, title, author, publisher, subjects and descriptions from archive.org…');
+  const r = await api('POST', 'refresh', { books: cur.books });
+  cur.books = r.books; renderRows(); log(r.log.join('\n') + '\nReview the items, then Save.', 'ok');
+});
 $('#queryBtn').onclick = () => busy(buildQueryFromItems);
 
 // Checks before Preview / Launch / Update: items that no longer exist on archive.org, duplicates, missing titles.
@@ -362,11 +366,14 @@ $('#previewBtn').onclick = () => {
 
 $('#launchBtn').onclick = () => busy(async () => {
   await persist(); if (!(await preflight())) return;
-  if (!confirm(`Go live? This commits and pushes ${cur.owner}/${cur.repo || cur.slug} to GitHub (master + gh-pages).\n\nTip: use "Preview locally" first.`)) return;
-  log('Launching…');
-  const r = await api('POST', 'launch/' + cur.slug);
+  const old = isOld(), where = `${cur.owner}/${cur.repo || cur.slug}`;
+  if (!confirm(old
+    ? `Publish ${where} with the new design (v${DESIGN})?\n\nThe current live design is first saved on a backup-old-design-* branch, then the new design and your items are pushed to ${cur.defaultBranch || 'master'} and gh-pages.\n\nHave you previewed it?`
+    : `Publish ${where}?\n\nThis commits and pushes to GitHub (master + gh-pages).\n\nHave you previewed it?`)) return;
+  log('Publishing…');
+  const r = await api('POST', (old ? 'modernise/' : 'launch/') + cur.slug);
   log(r.log.join('\n'), r.ok ? 'ok' : 'err');
-  if (r.ok) { projects = await api('GET', 'projects'); renderList(); showModernise(); }
+  if (r.ok) { projects = await api('GET', 'projects'); cur = JSON.parse(JSON.stringify(projects[cur.slug])); showModernise(); renderList(); }
 });
 
 $('#revertBtn').onclick = () => busy(async () => {
@@ -394,9 +401,10 @@ for (const n of ['slug', 'sub', 'domain']) form[n].addEventListener('input', () 
 const showModernise = () => {
   if (cur) { showLive(); $('#revertBtn').hidden = !projects[cur.slug]; }
   const p = cur && projects[cur.slug], old = p && p.imported && (p.designVersion || 1) < DESIGN;
-  $('#modBtn').hidden = !old;
-  if (old) $('#modBtn').textContent = `Update design v${p.designVersion || 1} → v${DESIGN} & push`;
+  $('#launchBtn').textContent = old ? `Publish to GitHub (update design v${p.designVersion || 1} → v${DESIGN})` : 'Publish to GitHub';
 };
+// An imported portal on an older design is published the same way, as a design update: the old design is kept on a backup branch.
+const isOld = () => { const p = cur && projects[cur.slug]; return !!(p && p.imported && (p.designVersion || 1) < DESIGN); };
 const _open = openProject; openProject = (p) => { $('#ghPanel').hidden = true; _open(p); showModernise(); };
 
 $('#ghBtn').onclick = () => { form.hidden = true; $('#empty').hidden = true; $('#ghPanel').hidden = false; cur = null; renderList(); };
@@ -421,14 +429,6 @@ $('#ghImport').onclick = () => busy(async () => {
   const r = await api('POST', 'import', { owner: $('#ghOwner').value.trim(), repos });
   projects = r.projects; renderList();
   $('#ghLog').textContent = r.log.join('\n') + '\n\nImported. Pick a portal on the left, then use "Modernise design & push".';
-});
-$('#modBtn').onclick = () => busy(async () => {
-  await persist(); if (!(await preflight())) return;
-  if (!confirm(`Update the design of ${cur.owner}/${cur.repo}?\n\nThe current design is saved on a backup-old-design-* branch, item details (year, title, author, publisher) are refreshed from archive.org, then the new design is pushed to ${cur.defaultBranch || 'master'} and gh-pages.\n\nTip: use "Preview locally" first.`)) return;
-  log('Modernising…');
-  const r = await api('POST', 'modernise/' + cur.slug);
-  log(r.log.join('\n'), r.ok ? 'ok' : 'err');
-  if (r.ok) { projects = await api('GET', 'projects'); cur = JSON.parse(JSON.stringify(projects[cur.slug])); showModernise(); renderList(); }
 });
 
 api('GET', 'projects').then((p) => { projects = p; renderList(); });
