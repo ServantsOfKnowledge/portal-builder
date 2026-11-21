@@ -140,6 +140,7 @@
       <button type="button" class="b" id="queryBtn">Build query from existing items</button>
       <button type="button" class="b" id="fetchBtn">Fetch items from IA</button>
       <button type="button" class="b" id="translitBtn" title="Writes Roman-script titles in the script of the language each book is tagged with; shown under the title and searchable">Transliterate titles to the book’s language</button>
+      <button type="button" class="b" id="aiBtn" hidden title="Uses a hosted model for titles the rules and word list may get wrong; sends only the titles">Improve with AI</button>
       <button type="button" class="b" id="refreshBtn">Refresh details from IA</button>
       <button type="submit" class="b">Save</button>
       <button type="button" class="b" id="checkBtn">Check items</button>
@@ -278,7 +279,7 @@ function renderRows() {
     for (const k of ['title', 'titleAlt', 'author', 'level']) {
       const td = document.createElement('td'), inp = document.createElement('input');
       inp.value = b[k] ?? ''; if (k === 'level') inp.style.width = '70px';
-      inp.oninput = () => { b[k] = k === 'level' && inp.value !== '' ? Number(inp.value) || '' : inp.value; };
+      inp.oninput = () => { if (k === 'titleAlt') b.altSrc = 'user'; b[k] = k === 'level' && inp.value !== '' ? Number(inp.value) || '' : inp.value; };
       td.append(inp); tr.append(td);
     }
     const x = document.createElement('td'), btn = document.createElement('button');
@@ -356,6 +357,11 @@ $('#translitBtn').onclick = () => busy('Transliterating', async (p, say) => {
   const r = await api('POST', 'translit', { books: p.books, lang: p.lang });
   p.books = r.books; applied(p); say('Added titles in each book’s language where the title was in Roman letters. Edit any in the Items table, then Save.', 'ok');
 });
+$('#aiBtn').onclick = () => busy('Asking the AI', async (p, say) => {
+  say('Asking the AI to transliterate titles…');
+  const r = await api('POST', 'translit-ai', { books: p.books, lang: p.lang });
+  p.books = r.books; applied(p); say(`AI wrote ${r.count} title(s) in each book’s language. Check them in the Items table, then Save.`, 'ok');
+});
 $('#refreshBtn').onclick = () => busy('Refreshing from archive.org', async (p, say) => {
   say('Refreshing year, title, author, publisher, subjects, language and descriptions from archive.org…');
   const r = await api('POST', 'refresh', { books: p.books });
@@ -427,7 +433,7 @@ $('#delBtn').onclick = () => busy('Removing', async () => {
   cur = null; form.hidden = true; $('#empty').hidden = false; renderList();
 });
 
-let DESIGN = 0; api('GET', 'meta').then((m) => { DESIGN = m.designVersion; showModernise(); renderList(); });
+let DESIGN = 0; api('GET', 'meta').then((m) => { DESIGN = m.designVersion; $('#aiBtn').hidden = !m.ai; showModernise(); renderList(); });
 // Link to the portal as it is live right now (the existing site before an update, the new one after a push).
 function showLive() {
   const f = readForm(), a = f.sub || f.slug, url = a && f.domain ? `https://${a}.${f.domain}/` : '';

@@ -124,9 +124,16 @@ assert(require('./server.js').pickCollection([{ collection: ['JaiGyan', 'Servant
   assert.strictEqual(b.logos, 'Gandhi Bhavan |  | ./img/gandhi-bhavan-logo.jpg\n |  | ./img/shilpakale.jpg\n |  | ./img/org-logo.png');
   assert.strictEqual(b.authorImage, ''); assert.strictEqual(b.authorName, 'ORG INTRODUCTION'); assert.ok(b.authorBio.startsWith('About the organisation'));
 }
-assert.strictEqual(toScript('Sanchaya Kathe', 'Kannada'), 'ಸಂಚಯ ಕಥೆ');
-assert.strictEqual(toScript('Sanchaya', 'Hindi'), 'संचय');
-assert.strictEqual(toScript('Kathe', 'Hindi'), 'कथे'); // e is long outside the Dravidian scripts
-assert.strictEqual(toScript('Sanchaya', 'English'), '');
+assert.strictEqual(toScript('Sanchaya Kathe', 'Kannada', {}), 'ಸಂಚಯ ಕಥೆ');
+assert.strictEqual(toScript('Sanchaya', 'Hindi', {}), 'संचय');
+assert.strictEqual(toScript('Kathe', 'Hindi', {}), 'कथे'); // e is long outside the Dravidian scripts
+assert.strictEqual(toScript('Sanchaya', 'English', {}), '');
 assert.ok(isRoman('Janapada Vichara') && !isRoman('ಸಂಚಯ') && !isRoman(''));
+{
+  const S = require('./server');
+  assert.strictEqual(S.knKey('ಕನ್ನಡ'), 'kannada'); assert.strictEqual(S.knKey('ಕಾವ್ಯ'), 'kavya'); assert.strictEqual(S.knKey('ಸಂಚಯ'), 'sanchaya');
+  const lex = S.buildLexicon(['ಕನ್ನಡ ಕನ್ನಡ', 'ವಿಚಾರ']);
+  assert.strictEqual(S.toScript('Kannada Vichara Samchaya', 'Kannada', lex), 'ಕನ್ನಡ ವಿಚಾರ ಸಂಚಯ'); // word list first, rules for the rest
+  assert.ok(S.rkeys('Kaavyaa').includes('kavya') && S.rkeys('Seeve').includes('seve'));
+}
 console.log('ok');

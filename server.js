@@ -102,11 +102,13 @@ const idYear = (id) => (/(?:^|[^0-9])(1[5-9]\d\d|20\d\d)(?:[^0-9]|$)/.exec(id ||
 const SCRIPT_BASE = { Kannada: 0xc80, Tulu: 0xc80, Telugu: 0xc00, Malayalam: 0xd00, Hindi: 0x900, Marathi: 0x900, Sanskrit: 0x900, Konkani: 0x900, Gujarati: 0xa80, Bengali: 0x980, Punjabi: 0xa00 };
 const R_CONS = { k: 0x15, kh: 0x16, g: 0x17, gh: 0x18, c: 0x1a, ch: 0x1a, chh: 0x1b, j: 0x1c, z: 0x1c, jh: 0x1d, t: 0x24, th: 0x25, d: 0x26, dh: 0x27, n: 0x28, p: 0x2a, f: 0x2b, ph: 0x2b, b: 0x2c, bh: 0x2d, m: 0x2e, y: 0x2f, r: 0x30, l: 0x32, v: 0x35, w: 0x35, sh: 0x36, s: 0x38, h: 0x39, q: 0x15 };
 const R_VOW = { a: [0x05, 0], aa: [0x06, 0x3e], i: [0x07, 0x3f], ii: [0x08, 0x40], ee: [0x08, 0x40], u: [0x09, 0x41], uu: [0x0a, 0x42], oo: [0x0a, 0x42], e: [0x0e, 0x46], ai: [0x10, 0x48], o: [0x12, 0x4a], au: [0x14, 0x4c] };
-function toScript(text, lang) {
+function toScript(text, lang, lex = LEX) {
   const base = SCRIPT_BASE[lang]; if (!base) return '';
   const ch = (o) => String.fromCharCode(base + o), V = 0x4d;
   return String(text || '').replace(/[A-Za-z]+/g, (w) => {
-    w = w.toLowerCase(); let out = '', pend = null, i = 0;
+    w = w.toLowerCase();
+    if (lang === 'Kannada' && w.length >= 3) { if (LEARN[w]) return LEARN[w]; for (const k of rkeys(w)) if (lex[k]) return lex[k]; }
+    let out = '', pend = null, i = 0;
     const flush = (conj) => { if (pend !== null) { out += ch(pend) + (conj ? ch(V) : ''); pend = null; } };
     while (i < w.length) {
       const c = ['ksh', 'chh', 'jn', 'gn', 'kh', 'gh', 'ch', 'jh', 'th', 'dh', 'ph', 'bh', 'sh'].find((t) => w.startsWith(t, i)) || w[i];
@@ -129,6 +131,54 @@ function toScript(text, lang) {
     flush(true); return out;
   });
 }
+// Word list learned from the portals' own Kannada text: Roman spelling -> the correct Kannada word. It settles what the sound rules cannot
+// (long vowels, retroflex ಡ/ದ). knKey() writes a Kannada word in the loose Roman spelling people type; rkeys() lists the ways a typed word may be spelled.
+const KN_IV = { 'ಅ': 'a', 'ಆ': 'a', 'ಇ': 'i', 'ಈ': 'i', 'ಉ': 'u', 'ಊ': 'u', 'ಋ': 'ru', 'ಎ': 'e', 'ಏ': 'e', 'ಐ': 'ai', 'ಒ': 'o', 'ಓ': 'o', 'ಔ': 'au' };
+const KN_MV = { 'ಾ': 'a', 'ಿ': 'i', 'ೀ': 'i', 'ು': 'u', 'ೂ': 'u', 'ೃ': 'ru', 'ೆ': 'e', 'ೇ': 'e', 'ೈ': 'ai', 'ೊ': 'o', 'ೋ': 'o', 'ೌ': 'au' };
+const KN_CR = Object.fromEntries('ಕ k|ಖ kh|ಗ g|ಘ gh|ಙ n|ಚ ch|ಛ chh|ಜ j|ಝ jh|ಞ n|ಟ t|ಠ th|ಡ d|ಢ dh|ಣ n|ತ t|ಥ th|ದ d|ಧ dh|ನ n|ಪ p|ಫ ph|ಬ b|ಭ bh|ಮ m|ಯ y|ರ r|ಱ r|ಲ l|ವ v|ಶ sh|ಷ sh|ಸ s|ಹ h|ಳ l'.split('|').map((x) => x.split(' ')));
+function knKey(word) {
+  const cs = [...String(word).normalize('NFC')]; let out = '';
+  for (let i = 0; i < cs.length; i++) {
+    const c = cs[i], n = cs[i + 1];
+    if (KN_CR[c]) { out += KN_CR[c]; if (n === '್') i++; else if (!KN_MV[n]) out += 'a'; }
+    else if (KN_MV[c]) out += KN_MV[c];
+    else if (KN_IV[c]) out += KN_IV[c];
+    else if (c === 'ಂ') out += !n || /[ಪಫಬಭಮ]/.test(n) ? 'm' : 'n';
+    else if (c === 'ಃ') out += 'h';
+    else if (c !== '್' && c !== '‌' && c !== '‍') return ''; // not a clean Kannada word
+  }
+  return out;
+}
+function rkeys(w) {
+  let b = w.toLowerCase().replace(/c(?!h)/g, 'ch').replace(/w/g, 'v').replace(/z/g, 'j').replace(/f/g, 'ph').replace(/q/g, 'k').replace(/aa+/g, 'a').replace(/ii+/g, 'i').replace(/uu+/g, 'u').replace(/m(?=[^aeiouybpmh])/g, 'n');
+  const set = new Set();
+  for (const e of [b.replace(/ee+/g, 'i'), b.replace(/ee+/g, 'e')])
+    for (const o of [e.replace(/oo+/g, 'u'), e.replace(/oo+/g, 'o')])
+      for (const x of [o, o.replace(/sh/g, 's'), o.replace(/s(?!h)/g, 'sh')]) set.add(x);
+  return [...set];
+}
+function buildLexicon(texts) {
+  const count = new Map();
+  for (const t of texts) for (const w of String(t || '').match(/[ಀ-೿‌‍]+/g) || []) count.set(w, (count.get(w) || 0) + 1);
+  const best = new Map();
+  for (const [w, n] of count) { const k = knKey(w); if (k.length < 3) continue; const o = best.get(k); if (!o || n > o[1] || (n === o[1] && w.length > o[0].length)) best.set(k, [w, n]); }
+  return Object.fromEntries([...best].sort().map(([k, [w]]) => [k, w]));
+}
+const readJson = (f) => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return {}; } };
+const LEX = readJson(path.join(ROOT, 'lexicon', 'kn.json'));
+const LEARN_FILE = path.join(DATA, 'lexicon-learned.json'), LEARN = readJson(LEARN_FILE); // words the user corrected by hand: typed word -> Kannada
+// Learn from a hand-corrected title: when the Roman and Kannada titles have the same number of words, pair them up.
+function learnFrom(books) {
+  let n = 0;
+  for (const b of books) {
+    if (b.altSrc !== 'user' || !b.titleAlt) continue;
+    const tw = b.title.split(/\s+/).map((x) => x.replace(/[^\p{L}]/gu, '')).filter(Boolean), aw = b.titleAlt.split(/\s+/).map((x) => x.replace(/[^\p{L}‌‍]/gu, '')).filter(Boolean);
+    if (tw.length !== aw.length) continue;
+    tw.forEach((w, i) => { if (/^[A-Za-z]{3,}$/.test(w) && /^[ಀ-೿‌‍]+$/.test(aw[i]) && LEARN[w.toLowerCase()] !== aw[i]) { LEARN[w.toLowerCase()] = aw[i]; n++; } });
+  }
+  if (n) { fs.mkdirSync(DATA, { recursive: true }); fs.writeFileSync(LEARN_FILE, JSON.stringify(LEARN, null, 1)); }
+}
+
 const targetLang = (b, portal) => (b.language && SCRIPT_BASE[langName(b.language)] ? langName(b.language) : /^kn/.test(portal || '') ? 'Kannada' : '');
 // A title needs transliterating when most of its letters are Latin and the book's language has another script.
 const isRoman = (t) => { const l = String(t || '').match(/\p{L}/gu) || []; return l.length > 0 && l.filter((x) => /[A-Za-z]/.test(x)).length * 2 > l.length; };
@@ -625,11 +675,34 @@ function serveFile(res, base, rel) {
   send(res, 200, fs.readFileSync(f), TYPES[path.extname(f)] || 'application/octet-stream');
 }
 
+
+// Optional: a hosted model transliterates what the rules and word list get wrong. Needs ANTHROPIC_API_KEY on the server; only book titles are sent.
+async function aiTransliterate(titles, lang) {
+  const out = [];
+  for (let i = 0; i < titles.length; i += 40) {
+    const chunk = titles.slice(i, i + 40);
+    const r = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST', headers: { 'content-type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({
+        model: process.env.PB_AI_MODEL || 'claude-haiku-5-5', max_tokens: 4000, temperature: 0,
+        system: `You transliterate Latin-script book titles into the ${lang} script. Write the sounds as correctly spelled ${lang} words (for example "Kannada" becomes ಕನ್ನಡ and "Sanchaya" becomes ಸಂಚಯ); never translate the meaning. Keep digits and punctuation. Reply with ONLY a JSON array of strings, the same length and order as the input array.`,
+        messages: [{ role: 'user', content: JSON.stringify(chunk) }],
+      }),
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error?.message || r.statusText);
+    const text = (j.content || []).map((c) => c.text || '').join(''), arr2 = JSON.parse(text.slice(text.indexOf('['), text.lastIndexOf(']') + 1));
+    if (!Array.isArray(arr2) || arr2.length !== chunk.length) throw new Error('the model returned an unexpected answer');
+    out.push(...arr2.map(String));
+  }
+  return out;
+}
+
 async function api(req, res, url) {
   const db = load();
   const [, , name, slug] = url.pathname.split('/');
   if (req.method === 'GET' && name === 'projects') return send(res, 200, db);
-  if (req.method === 'GET' && name === 'meta') return send(res, 200, { designVersion: DESIGN_VERSION });
+  if (req.method === 'GET' && name === 'meta') return send(res, 200, { designVersion: DESIGN_VERSION, ai: !!process.env.ANTHROPIC_API_KEY });
   if (req.method === 'GET' && name === 'gh') {
     try { return send(res, 200, await listPortals(url.searchParams.get('owner'))); }
     catch (e) { return send(res, 200, { error: 'Could not list repos: ' + ((e.stderr || e.message) + '').trim().slice(0, 300) }); }
@@ -639,7 +712,7 @@ async function api(req, res, url) {
   const b = body ? JSON.parse(body) : {};
 
   if (name === 'projects' && req.method === 'PUT') {
-    validate(b); db[b.slug] = { ...b, books: (b.books || []).map(cleanBook) }; save(db); return send(res, 200, { ok: true });
+    validate(b); db[b.slug] = { ...b, books: (b.books || []).map(cleanBook) }; save(db); learnFrom(db[b.slug].books); return send(res, 200, { ok: true });
   }
   if (name === 'projects' && req.method === 'DELETE') { delete db[slug]; save(db); return send(res, 200, { ok: true }); }
   if (name === 'fetch') {
@@ -657,7 +730,18 @@ async function api(req, res, url) {
     }
     return send(res, 200, r);
   }
-  if (name === 'translit') return send(res, 200, { books: (b.books || []).map((x) => { const l = targetLang(x, b.lang); return x.titleAlt || !l || !isRoman(x.title) ? x : { ...x, titleAlt: toScript(x.title, l) }; }) });
+  if (name === 'translit-ai') {
+    if (!process.env.ANTHROPIC_API_KEY) throw new Error('AI is not set up: add ANTHROPIC_API_KEY to the server environment');
+    const jobs = (b.books || []).map((x, i) => [i, targetLang(x, b.lang)]).filter(([i, l]) => l && isRoman(b.books[i].title) && (!b.books[i].titleAlt || b.books[i].altSrc === 'rules'));
+    const byLang = {}; for (const [i, l] of jobs) (byLang[l] = byLang[l] || []).push(i);
+    const books = b.books.map((x) => ({ ...x }));
+    for (const [l, idx] of Object.entries(byLang)) {
+      const res2 = await aiTransliterate(idx.map((i) => books[i].title), l);
+      idx.forEach((i, k) => { if (res2[k]) { books[i].titleAlt = res2[k]; books[i].altSrc = 'ai'; } });
+    }
+    return send(res, 200, { books, count: jobs.length });
+  }
+  if (name === 'translit') return send(res, 200, { books: (b.books || []).map((x) => { const l = targetLang(x, b.lang); return x.titleAlt || !l || !isRoman(x.title) ? x : { ...x, titleAlt: toScript(x.title, l), altSrc: 'rules' }; }) });
   if (name === 'asset') { // POST /api/asset/<slug>/<logo|favicon>
     const kind = url.pathname.split('/')[4];
     if (!/^[a-z0-9-]+$/.test(slug) || !['logo', 'favicon'].includes(kind)) throw new Error('bad asset');
@@ -743,4 +827,4 @@ if (require.main === module) {
   }
   server.listen(PORT, HOST, () => console.log(`portal-builder → http://${HOST}:${PORT}`));
 }
-module.exports = { languagesHtml, langName, creditHtml, toScript, isRoman, extractBranding, logosHtml, authorHtml, buildQuery, checkBooks, cleanBook, pickCollection, renderList, refreshBooks, DESIGN_VERSION, fromOldSite, build, merge, toBook, server, authorized };
+module.exports = { knKey, rkeys, buildLexicon, learnFrom, aiTransliterate, languagesHtml, langName, creditHtml, toScript, isRoman, extractBranding, logosHtml, authorHtml, buildQuery, checkBooks, cleanBook, pickCollection, renderList, refreshBooks, DESIGN_VERSION, fromOldSite, build, merge, toBook, server, authorized };

@@ -42,3 +42,12 @@ The Servants of Knowledge logo lives at `template/img/sok-logo.png` (portal foot
 **Import from GitHub** (sidebar) lists every repo of an org or user that has an `issues.json`, and imports the ones you tick. Opening a portal only shows what it has; nothing is looked up until you press a button: **Build query from existing items**, **Fetch items from IA**, **Refresh details from IA**, **Check items**, **Preview locally**, **Publish to GitHub**. Publishing a portal on an older design is the same click: the live design is first saved on a `backup-old-design-*` branch, then the new design and your items are pushed to the default branch and `gh-pages`. Needs `gh` signed in (or `GH_TOKEN`) where the app runs.
 
 **Design version.** Every built portal carries `<meta name="portal-design" content="N">`. `DESIGN_VERSION` in `server.js` is the current N; bump it when the template gains something worth rolling out. An imported portal whose version is lower shows **Update design vA → vB & push** (portals without the marker count as v1).
+
+## Titles in the book's own language
+
+"Transliterate titles to the book's language" writes Roman-script titles in the script of the language each book is tagged with.
+Kannada uses a word list (`lexicon/kn.json`, learned from the portals' own text) before falling back to sound rules; words you correct by hand
+in the Items table are remembered (`data/lexicon-learned.json`). Rebuild the word list with `node tools/build-lexicon.js <folder of portal folders>`.
+
+Optional "Improve with AI": set `ANTHROPIC_API_KEY` (and, if you like, `PB_AI_MODEL`) in the server environment. The button appears when a key is set;
+only book titles are sent to the model, and its answers land in the editable column for review.
