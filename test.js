@@ -1,6 +1,6 @@
 // Offline self-check: renders portals and verifies output. Run: node test.js
 const assert = require('assert'), fs = require('fs'), path = require('path');
-const { build, merge, toBook, authorized, translit, extractBranding, logosHtml, authorHtml } = require('./server');
+const { build, merge, toBook, authorized, toScript, isRoman, extractBranding, logosHtml, authorHtml } = require('./server');
 
 // --- IA mapping and merge
 const doc = { identifier: 'x_1999_v1', title: 'T "q" <b>', creator: ['A B'], year: 1999, description: '<p>hi  there</p>',
@@ -105,8 +105,6 @@ assert(require('./server.js').pickCollection([{ collection: ['JaiGyan', 'Servant
   assert.strictEqual(b.authorImage, './img/dsn.jpeg'); assert.strictEqual(b.authorName, 'DSN (1952-2022)'); assert.ok(b.authorBio.startsWith('A long bio'));
   assert.strictEqual(b.logos, '');
 }
-assert.strictEqual(translit('ಡಿ. ಎಸ್. ನಾಗಭೂಷಣ ಸಮಗ್ರ ಸಾಹಿತ್ಯ'), 'Di. Es. Nagabhushana Samagra Sahitya');
-assert.strictEqual(translit('ಸಂಚಯ ಕನ್ನಡ'), 'Sanchaya Kannada');
 {
   const c = require('./server').creditHtml({ orgName: 'Some Press', footer: '' });
   assert.ok(/Sanchaya<\/a> \| <a href="https:\/\/sanchifoundation\.org[^>]*>Sanchi Foundation<\/a> in collaboration with <a href="https:\/\/research\.servantsofknowledge\.in/.test(c) && !c.includes('Some Press'));
@@ -126,4 +124,9 @@ assert.strictEqual(translit('ಸಂಚಯ ಕನ್ನಡ'), 'Sanchaya Kannada')
   assert.strictEqual(b.logos, 'Gandhi Bhavan |  | ./img/gandhi-bhavan-logo.jpg\n |  | ./img/shilpakale.jpg\n |  | ./img/org-logo.png');
   assert.strictEqual(b.authorImage, ''); assert.strictEqual(b.authorName, 'ORG INTRODUCTION'); assert.ok(b.authorBio.startsWith('About the organisation'));
 }
+assert.strictEqual(toScript('Sanchaya Kathe', 'Kannada'), 'ಸಂಚಯ ಕಥೆ');
+assert.strictEqual(toScript('Sanchaya', 'Hindi'), 'संचय');
+assert.strictEqual(toScript('Kathe', 'Hindi'), 'कथे'); // e is long outside the Dravidian scripts
+assert.strictEqual(toScript('Sanchaya', 'English'), '');
+assert.ok(isRoman('Janapada Vichara') && !isRoman('ಸಂಚಯ') && !isRoman(''));
 console.log('ok');

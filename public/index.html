@@ -131,7 +131,7 @@
 
     <fieldset><legend id="count">Items</legend>
       <div class="scroll"><table>
-        <thead><tr><th>Identifier</th><th>Title</th><th>English title</th><th>Author</th><th>Year</th><th></th></tr></thead>
+        <thead><tr><th>Identifier</th><th>Title</th><th>Title in its language</th><th>Author</th><th>Year</th><th></th></tr></thead>
         <tbody id="rows"></tbody>
       </table></div>
     </fieldset>
@@ -139,7 +139,7 @@
     <div class="bar">
       <button type="button" class="b" id="queryBtn">Build query from existing items</button>
       <button type="button" class="b" id="fetchBtn">Fetch items from IA</button>
-      <button type="button" class="b" id="translitBtn" title="Adds a Roman-script title under each Kannada title; also searchable">Transliterate titles to English</button>
+      <button type="button" class="b" id="translitBtn" title="Writes Roman-script titles in the script of the language each book is tagged with; shown under the title and searchable">Transliterate titles to the book’s language</button>
       <button type="button" class="b" id="refreshBtn">Refresh details from IA</button>
       <button type="submit" class="b">Save</button>
       <button type="button" class="b" id="checkBtn">Check items</button>
@@ -275,7 +275,7 @@ function renderRows() {
   cur.books.forEach((b, i) => {
     const tr = document.createElement('tr');
     tr.innerHTML = `<td class="hint">${b.identifier}</td>`;
-    for (const k of ['title', 'titleEn', 'author', 'level']) {
+    for (const k of ['title', 'titleAlt', 'author', 'level']) {
       const td = document.createElement('td'), inp = document.createElement('input');
       inp.value = b[k] ?? ''; if (k === 'level') inp.style.width = '70px';
       inp.oninput = () => { b[k] = k === 'level' && inp.value !== '' ? Number(inp.value) || '' : inp.value; };
@@ -353,8 +353,8 @@ async function buildQueryFromItems(p, say) {
   say(`Query built from ${r.count} existing items (${r.source}): ${r.query}`, 'ok');
 }
 $('#translitBtn').onclick = () => busy('Transliterating', async (p, say) => {
-  const r = await api('POST', 'translit', { books: p.books });
-  p.books = r.books; applied(p); say('Added English titles where missing. Edit any in the Items table, then Save.', 'ok');
+  const r = await api('POST', 'translit', { books: p.books, lang: p.lang });
+  p.books = r.books; applied(p); say('Added titles in each book’s language where the title was in Roman letters. Edit any in the Items table, then Save.', 'ok');
 });
 $('#refreshBtn').onclick = () => busy('Refreshing from archive.org', async (p, say) => {
   say('Refreshing year, title, author, publisher, subjects, language and descriptions from archive.org…');
