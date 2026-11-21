@@ -49,5 +49,5 @@ The Servants of Knowledge logo lives at `template/img/sok-logo.png` (portal foot
 Kannada uses a word list (`lexicon/kn.json`, learned from the portals' own text) before falling back to sound rules; words you correct by hand
 in the Items table are remembered (`data/lexicon-learned.json`). Rebuild the word list with `node tools/build-lexicon.js <folder of portal folders>`.
 
-Optional "Improve with AI": set `ANTHROPIC_API_KEY` (and, if you like, `PB_AI_MODEL`) in the server environment. The button appears when a key is set;
+Optional "Improve with AI": add an Anthropic API key under Settings in the app (kept in `data/settings.json` on the server), or set `ANTHROPIC_API_KEY` / `PB_AI_MODEL` in the environment. The button appears when a key is set;
 only book titles are sent to the model, and its answers land in the editable column for review.

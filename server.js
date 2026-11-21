@@ -24,6 +24,11 @@ function authorized(header, user, pass) {
 }
 
 const load = () => (fs.existsSync(DB) ? JSON.parse(fs.readFileSync(DB, 'utf8')) : {});
+// Settings kept on the server (data/settings.json, owner-only). The AI key is never sent back to the browser.
+const SETTINGS = path.join(DATA, 'settings.json');
+const settings = () => { try { return JSON.parse(fs.readFileSync(SETTINGS, 'utf8')); } catch { return {}; } };
+const aiKey = () => settings().aiKey || process.env.ANTHROPIC_API_KEY || '';
+const aiModel = () => settings().aiModel || process.env.PB_AI_MODEL || 'claude-haiku-5-5';
 const save = (db) => { fs.mkdirSync(DATA, { recursive: true }); fs.writeFileSync(DB, JSON.stringify(db, null, 2)); };
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const arr = (v) => [].concat(v ?? []);
@@ -682,9 +687,9 @@ async function aiTransliterate(titles, lang) {
   for (let i = 0; i < titles.length; i += 40) {
     const chunk = titles.slice(i, i + 40);
     const r = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST', headers: { 'content-type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
+      method: 'POST', headers: { 'content-type': 'application/json', 'x-api-key': aiKey(), 'anthropic-version': '2023-06-01' },
       body: JSON.stringify({
-        model: process.env.PB_AI_MODEL || 'claude-haiku-5-5', max_tokens: 4000, temperature: 0,
+        model: aiModel(), max_tokens: 4000, temperature: 0,
         system: `You transliterate Latin-script book titles into the ${lang} script. Write the sounds as correctly spelled ${lang} words (for example "Kannada" becomes ಕನ್ನಡ and "Sanchaya" becomes ಸಂಚಯ); never translate the meaning. Keep digits and punctuation. Reply with ONLY a JSON array of strings, the same length and order as the input array.`,
         messages: [{ role: 'user', content: JSON.stringify(chunk) }],
       }),
@@ -702,7 +707,11 @@ async function api(req, res, url) {
   const db = load();
   const [, , name, slug] = url.pathname.split('/');
   if (req.method === 'GET' && name === 'projects') return send(res, 200, db);
-  if (req.method === 'GET' && name === 'meta') return send(res, 200, { designVersion: DESIGN_VERSION, ai: !!process.env.ANTHROPIC_API_KEY });
+  if (req.method === 'GET' && name === 'settings') {
+    const st = settings(), k = aiKey();
+    return send(res, 200, { aiKeySet: !!k, aiKeyHint: k ? '…' + k.slice(-4) : '', aiKeySource: st.aiKey ? 'saved' : k ? 'environment' : '', aiModel: aiModel() });
+  }
+  if (req.method === 'GET' && name === 'meta') return send(res, 200, { designVersion: DESIGN_VERSION, ai: !!aiKey() });
   if (req.method === 'GET' && name === 'gh') {
     try { return send(res, 200, await listPortals(url.searchParams.get('owner'))); }
     catch (e) { return send(res, 200, { error: 'Could not list repos: ' + ((e.stderr || e.message) + '').trim().slice(0, 300) }); }
@@ -711,6 +720,13 @@ async function api(req, res, url) {
   for await (const c of req) { body += c; if (body.length > 30e6) throw new Error('body too large'); }
   const b = body ? JSON.parse(body) : {};
 
+  if (name === 'settings' && req.method === 'PUT') {
+    const st = settings();
+    if (typeof b.aiKey === 'string') { const k = b.aiKey.trim(); if (k && !/^sk-[\w-]{20,}$/.test(k)) throw new Error('that does not look like an Anthropic API key (it starts with sk-)'); if (k) st.aiKey = k; else delete st.aiKey; }
+    if (typeof b.aiModel === 'string') { const m = b.aiModel.trim(); if (m && !/^[\w.-]{3,80}$/.test(m)) throw new Error('model name looks wrong'); if (m) st.aiModel = m; else delete st.aiModel; }
+    fs.mkdirSync(DATA, { recursive: true }); fs.writeFileSync(SETTINGS, JSON.stringify(st, null, 1), { mode: 0o600 });
+    return send(res, 200, { ok: true });
+  }
   if (name === 'projects' && req.method === 'PUT') {
     validate(b); db[b.slug] = { ...b, books: (b.books || []).map(cleanBook) }; save(db); learnFrom(db[b.slug].books); return send(res, 200, { ok: true });
   }
@@ -731,7 +747,7 @@ async function api(req, res, url) {
     return send(res, 200, r);
   }
   if (name === 'translit-ai') {
-    if (!process.env.ANTHROPIC_API_KEY) throw new Error('AI is not set up: add ANTHROPIC_API_KEY to the server environment');
+    if (!aiKey()) throw new Error('AI is not set up: add an Anthropic API key under Settings');
     const jobs = (b.books || []).map((x, i) => [i, targetLang(x, b.lang)]).filter(([i, l]) => l && isRoman(b.books[i].title) && (!b.books[i].titleAlt || b.books[i].altSrc === 'rules'));
     const byLang = {}; for (const [i, l] of jobs) (byLang[l] = byLang[l] || []).push(i);
     const books = b.books.map((x) => ({ ...x }));

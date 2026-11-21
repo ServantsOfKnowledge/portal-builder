@@ -59,6 +59,7 @@
   <div id="list"></div>
   <button class="item new" id="newBtn">+ New portal</button>
   <button class="item new" id="ghBtn">↓ Import from GitHub</button>
+  <button class="item new" id="setBtn">⚙ Settings</button>
 </aside>
 <main><div class="wrap">
   <div id="empty">Pick a portal on the left, or create a new one.</div>
@@ -70,6 +71,17 @@
       <div class="scroll" id="ghRows" hidden><table><thead><tr><th></th><th>Repo</th><th>Domain</th><th>Status</th></tr></thead><tbody></tbody></table></div>
       <div class="bar"><button type="button" class="b pri" id="ghImport" hidden>Import selected</button></div>
       <pre id="ghLog">—</pre>
+    </fieldset>
+  </section>
+  <section id="setPanel" hidden>
+    <fieldset><legend>Settings</legend>
+      <div class="grid">
+        <label>Anthropic API key (for “Improve with AI”)<input id="aiKey" type="password" autocomplete="off" placeholder="sk-ant-…"></label>
+        <label>Model (optional)<input id="aiModel" placeholder="claude-haiku-5-5" autocomplete="off"></label>
+      </div>
+      <p class="hint" id="aiState">—</p>
+      <p class="hint">The key is stored on the server only (not in your browser or in any portal repo) and is never shown again. Only book titles are sent to the model. Leave the key box empty and Save to keep the current key; use Remove key to delete it.</p>
+      <div class="bar"><button type="button" class="b pri" id="setSave">Save</button><button type="button" class="b" id="setRemove">Remove key</button></div>
     </fieldset>
   </section>
   <form id="form" hidden>
@@ -448,9 +460,21 @@ const showModernise = () => {
 };
 // An imported portal on an older design is published the same way, as a design update: the old design is kept on a backup branch.
 const isOld = () => { const p = cur && projects[cur.slug]; return !!(p && p.imported && (p.designVersion || 1) < DESIGN); };
-const _open = openProject; openProject = (p) => { $('#ghPanel').hidden = true; _open(p); showModernise(); sync(); };
+const _open = openProject; openProject = (p) => { $('#ghPanel').hidden = true; $('#setPanel').hidden = true; _open(p); showModernise(); sync(); };
 
-$('#ghBtn').onclick = () => { form.hidden = true; $('#empty').hidden = true; $('#ghPanel').hidden = false; cur = null; renderList(); };
+async function loadSettings() {
+  const r = await api('GET', 'settings');
+  $('#aiModel').value = r.aiModel; $('#aiKey').value = '';
+  $('#aiState').textContent = r.aiKeySet ? `A key is set (${r.aiKeyHint}, from ${r.aiKeySource}). “Improve with AI” is on.` : 'No key set: “Improve with AI” is hidden.';
+  $('#aiBtn').hidden = !r.aiKeySet;
+}
+$('#setBtn').onclick = () => { form.hidden = true; $('#empty').hidden = true; $('#ghPanel').hidden = true; $('#setPanel').hidden = false; cur = null; renderList(); loadSettings().catch((e) => ($('#aiState').textContent = e.message)); };
+$('#setSave').onclick = async () => {
+  try { const body = { aiModel: $('#aiModel').value }; if ($('#aiKey').value.trim()) body.aiKey = $('#aiKey').value; await api('PUT', 'settings', body); await loadSettings(); $('#aiState').textContent += ' Saved.'; }
+  catch (e) { $('#aiState').textContent = e.message; }
+};
+$('#setRemove').onclick = async () => { if (!confirm('Remove the saved API key?')) return; try { await api('PUT', 'settings', { aiKey: '' }); await loadSettings(); } catch (e) { $('#aiState').textContent = e.message; } };
+$('#ghBtn').onclick = () => { $('#setPanel').hidden = true; form.hidden = true; $('#empty').hidden = true; $('#ghPanel').hidden = false; cur = null; renderList(); };
 $('#ghList').onclick = () => busy('Listing GitHub repos', async () => {
   const gl = (t, c = '') => { $('#ghLog').innerHTML = `<span class="${c}">${t.replace(/</g, '&lt;')}</span>`; };
   gl('Listing…');
