@@ -136,4 +136,20 @@ assert.ok(isRoman('Janapada Vichara') && !isRoman('ಸಂಚಯ') && !isRoman(''
   assert.strictEqual(S.toScript('Kannada Vichara Samchaya', 'Kannada', lex), 'ಕನ್ನಡ ವಿಚಾರ ಸಂಚಯ'); // word list first, rules for the rest
   assert.ok(S.rkeys('Kaavyaa').includes('kavya') && S.rkeys('Seeve').includes('seve'));
 }
+{
+  // an uploaded organisation logo sits beside the Sanchaya logo; it never replaces img/logo.png
+  const fs2 = require('fs'), path2 = require('path'), S = require('./server');
+  const slug = 'zz-logo-test', ad = path2.join(__dirname, 'data', 'assets', slug); fs2.mkdirSync(ad, { recursive: true });
+  fs2.writeFileSync(path2.join(ad, 'org-logo.png'), 'ORG'); fs2.writeFileSync(path2.join(ad, 'author.png'), 'AUTH');
+  S.build({ slug, owner: 'o', repo: 'r', sub: 'z', domain: 'x.net', title: 'T', description: 'd', lang: 'en', openMode: 'tab', partners: '', authorBio: 'Bio', collaborator: 'Org', books: [{ identifier: 'abc12345', title: 'B' }] });
+  const w = path2.join(__dirname, 'workspace', slug), html = fs2.readFileSync(path2.join(w, 'index.html'), 'utf8');
+  assert.ok(fs2.readFileSync(path2.join(w, 'img', 'logo.png')).equals(fs2.readFileSync(path2.join(__dirname, 'template', 'img', 'logo.png'))), 'Sanchaya logo untouched');
+  assert.ok(html.includes('src="./img/org-logo.png"') && html.includes('src="./img/author.png"') && html.includes('./img/logo.png'));
+  fs2.rmSync(path2.join(ad, 'org-logo.png')); S.build({ slug, owner: 'o', repo: 'r', sub: 'z', domain: 'x.net', title: 'T', description: 'd', lang: 'en', openMode: 'tab', partners: '', books: [{ identifier: 'abc12345', title: 'B' }] });
+  assert.ok(!fs2.existsSync(path2.join(w, 'img', 'org-logo.png')) && !fs2.readFileSync(path2.join(w, 'index.html'), 'utf8').includes('org-logo.png'), 'reset removes it');
+  // old-style custom logo is kept as the organisation logo
+  fs2.writeFileSync(path2.join(ad, 'logo.png'), 'OLD'); S.migrateLogos();
+  assert.ok(fs2.existsSync(path2.join(ad, 'org-logo.png')) && !fs2.existsSync(path2.join(ad, 'logo.png')));
+  fs2.rmSync(ad, { recursive: true }); fs2.rmSync(w, { recursive: true });
+}
 console.log('ok');

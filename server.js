@@ -452,8 +452,10 @@ function build(p) {
   fs.mkdirSync(dir, { recursive: true });
   for (const d of ['css', 'img']) fs.cpSync(path.join(TPL, d), path.join(dir, d), { recursive: true });
   const assets = path.join(DATA, 'assets', p.slug);
-  const logo = path.join(assets, 'logo.png'), fav = path.join(assets, 'favicon.png');
-  if (fs.existsSync(logo)) fs.copyFileSync(logo, path.join(dir, 'img', 'logo.png'));
+  const fav = path.join(assets, 'favicon.png'), has = (n) => fs.existsSync(path.join(assets, n + '.png'));
+  for (const n of ['org-logo', 'author']) { // never the Sanchaya logo.png: an uploaded organisation logo sits beside it
+    if (has(n)) fs.copyFileSync(path.join(assets, n + '.png'), path.join(dir, 'img', n + '.png')); else fs.rmSync(path.join(dir, 'img', n + '.png'), { force: true });
+  }
   if (fs.existsSync(fav)) for (const n of ['favicon-32x32.png', 'android-chrome-192x192.png']) fs.copyFileSync(fav, path.join(dir, 'img', 'ico', n));
   const extra = path.join(assets, 'extra');
   if (fs.existsSync(extra)) fs.cpSync(extra, path.join(dir, 'img'), { recursive: true });
@@ -464,7 +466,7 @@ function build(p) {
   const v = {
     LANG: esc(p.lang || 'kn'), TITLE: esc(p.title), TAGLINE: esc(p.tagline), DESC: esc(p.description),
     AUTHOR: esc(p.orgName), SITE: site, OGIMG: esc(sorted[0]?.cover || ''), GA: GA(p.gaId) || '',
-    PARTNERS: partnersHtml(p.partners), LOGOS: logosHtml(p.logos), AUTHORBOX: authorHtml(p), CREDIT: creditHtml(p),
+    PARTNERS: partnersHtml(p.partners), LOGOS: logosHtml((has('org-logo') && !/img\/org-logo\.png/.test(p.logos || '') ? `${p.collaborator || ''} | | ./img/org-logo.png\n` : '') + (p.logos || '')), AUTHORBOX: authorHtml({ ...p, authorImage: has('author') ? './img/author.png' : p.authorImage }), CREDIT: creditHtml(p),
     LIST: renderList(sorted.slice(0, PAGE), ui, read) + (sorted.length > PAGE ? '<div id="more" data-pages="' + Math.ceil(sorted.length / PAGE) + '"></div>' : ''), PILLS: pillsHtml(p.books, ui), TOPICS: topicsHtml(p.books, ui), VOLS: volumesHtml(p.books, ui), LANGS: languagesHtml(p.books, ui), COUNT: `${p.books.length} / ${p.books.length} ${esc(ui.ITEMS)}`,
     LDJSON: jsonLd(p, site, sorted), FRAME: String(p.openMode === 'frame'), TJSON: JSON.stringify({ items: ui.ITEMS }).replace(/</g, '\\u003c'),
     SOK: `${fs.existsSync(path.join(TPL, 'img', 'sok-logo.png')) ? '<img src="./img/sok-logo.png" alt="">' : ''}<span>A <a href="https://archive.org/details/ServantsOfKnowledge" target="_blank" rel="noopener">Servants of Knowledge</a> Initiative</span>`,
@@ -611,6 +613,19 @@ function fromOldSite(owner, repo, f) {
   };
 }
 
+// Older builds let an uploaded logo replace the Sanchaya logo. Keep such an image as the organisation logo; drop it if it is the Sanchaya one.
+function migrateLogos() {
+  const root = path.join(DATA, 'assets');
+  if (!fs.existsSync(root)) return;
+  const tpl = fs.readFileSync(path.join(TPL, 'img', 'logo.png'));
+  for (const slug of fs.readdirSync(root)) {
+    const old = path.join(root, slug, 'logo.png');
+    if (!fs.existsSync(old)) continue;
+    if (!fs.readFileSync(old).equals(tpl) && !fs.existsSync(path.join(root, slug, 'org-logo.png'))) fs.renameSync(old, path.join(root, slug, 'org-logo.png')); else fs.rmSync(old);
+  }
+}
+migrateLogos();
+
 async function importPortal(owner, repo, log) {
   ownerOk(owner);
   if (!/^[A-Za-z0-9._-]+$/.test(repo)) throw new Error('repo name is invalid');
@@ -622,7 +637,7 @@ async function importPortal(owner, repo, log) {
   p.designVersion = +(/<meta name="portal-design" content="(\d+)"/.exec(rd('index.html')) || [])[1] || 1;
   p.defaultBranch = (await run('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: dir })).stdout.trim();
   const logo = path.join(dir, 'img', 'logo.png');
-  if (fs.existsSync(logo)) { const a = path.join(DATA, 'assets', slug); fs.mkdirSync(a, { recursive: true }); fs.copyFileSync(logo, path.join(a, 'logo.png')); }
+  if (fs.existsSync(logo) && !fs.readFileSync(logo).equals(fs.readFileSync(path.join(TPL, 'img', 'logo.png')))) { const a = path.join(DATA, 'assets', slug); fs.mkdirSync(a, { recursive: true }); fs.copyFileSync(logo, path.join(a, 'org-logo.png')); }
   const q0 = buildQuery(p.books.map((x) => x.identifier), ''); if (q0) Object.assign(p, q0);
   // A portal that was already updated has lost its old header logos and intro in the live files; the oldest backup branch still has them.
   let backup = '';
@@ -758,12 +773,16 @@ async function api(req, res, url) {
     return send(res, 200, { books, count: jobs.length });
   }
   if (name === 'translit') return send(res, 200, { books: (b.books || []).map((x) => { const l = targetLang(x, b.lang); return x.titleAlt || !l || !isRoman(x.title) ? x : { ...x, titleAlt: toScript(x.title, l), altSrc: 'rules' }; }) });
-  if (name === 'asset') { // POST /api/asset/<slug>/<logo|favicon>
+  if (name === 'asset') { // POST or DELETE /api/asset/<slug>/<org-logo|author|favicon>
     const kind = url.pathname.split('/')[4];
-    if (!/^[a-z0-9-]+$/.test(slug) || !['logo', 'favicon'].includes(kind)) throw new Error('bad asset');
-    const dir = path.join(DATA, 'assets', slug);
-    fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(path.join(dir, kind + '.png'), Buffer.from(b.dataUrl.split(',')[1], 'base64'));
+    if (!/^[a-z0-9-]+$/.test(slug) || !['org-logo', 'author', 'favicon'].includes(kind)) throw new Error('bad asset');
+    const dir = path.join(DATA, 'assets', slug), file = path.join(dir, kind + '.png');
+    if (req.method === 'DELETE') { fs.rmSync(file, { force: true }); return send(res, 200, { ok: true }); }
+    const m = /^data:image\/(png|jpeg|webp);base64,([A-Za-z0-9+/=]+)$/.exec(b.dataUrl || '');
+    if (!m) throw new Error('upload a PNG, JPG or WebP image');
+    const buf = Buffer.from(m[2], 'base64');
+    if (buf.length > 4e6) throw new Error('image is larger than 4 MB');
+    fs.mkdirSync(dir, { recursive: true }); fs.writeFileSync(file, buf);
     return send(res, 200, { ok: true });
   }
   if (name === 'import') {
@@ -843,4 +862,4 @@ if (require.main === module) {
   }
   server.listen(PORT, HOST, () => console.log(`portal-builder → http://${HOST}:${PORT}`));
 }
-module.exports = { knKey, rkeys, buildLexicon, learnFrom, aiTransliterate, languagesHtml, langName, creditHtml, toScript, isRoman, extractBranding, logosHtml, authorHtml, buildQuery, checkBooks, cleanBook, pickCollection, renderList, refreshBooks, DESIGN_VERSION, fromOldSite, build, merge, toBook, server, authorized };
+module.exports = { migrateLogos, knKey, rkeys, buildLexicon, learnFrom, aiTransliterate, languagesHtml, langName, creditHtml, toScript, isRoman, extractBranding, logosHtml, authorHtml, buildQuery, checkBooks, cleanBook, pickCollection, renderList, refreshBooks, DESIGN_VERSION, fromOldSite, build, merge, toBook, server, authorized };

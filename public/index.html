@@ -126,11 +126,14 @@
     <p class="hint" id="dns"></p></fieldset>
 
     <fieldset><legend>Look</legend><div class="grid">
-      <label>Logo (PNG)
-        <span class="asset"><img id="logoPrev" alt=""><input type="file" id="logo" accept="image/png"></span>
+      <label>Organization or author logo (PNG or JPG; shown beside the Sanchaya logo, which always stays)
+        <span class="asset"><img id="orgPrev" alt=""><input type="file" id="orglogo" accept="image/png,image/jpeg"><button type="button" class="b" data-reset="org-logo" title="Remove the uploaded logo">Reset</button></span>
+      </label>
+      <label>Author photo (PNG or JPG; shown with the author bio)
+        <span class="asset"><img id="authPrev" alt=""><input type="file" id="authorup" accept="image/png,image/jpeg"><button type="button" class="b" data-reset="author" title="Remove the uploaded photo">Reset</button></span>
       </label>
       <label>Favicon (square PNG, optional)
-        <span class="asset"><img id="favPrev" alt=""><input type="file" id="favicon" accept="image/png"></span>
+        <span class="asset"><img id="favPrev" alt=""><input type="file" id="favicon" accept="image/png"><button type="button" class="b" data-reset="favicon" title="Back to the default favicon">Reset</button></span>
       </label>
       <label class="wide">Extra logos (shown beside the title), one per line: Name | link | image URL or img/file.png<textarea name="logos" placeholder="Kaanana | https://kaanana.sanchaya.net | https://example.org/logo.png"></textarea></label>
       <label>Author name<input name="authorName"></label>
@@ -262,7 +265,7 @@ function openProject(p) {
   $('#empty').hidden = true; form.hidden = false;
   for (const el of form.elements) if (el.name) el.value = cur[el.name] ?? '';
   form.slug.readOnly = !!projects[cur.slug];
-  showAsset($('#logoPrev'), 'logo'); showAsset($('#favPrev'), 'favicon');
+  showAsset($('#orgPrev'), 'org-logo'); showAsset($('#authPrev'), 'author'); showAsset($('#favPrev'), 'favicon');
   renderRows(); renderList(); log('—'); window.scrollTo(0, 0);
   if (!cur.query && cur.books.length && projects[cur.slug]) { // learn the pattern from issues.json; local only, no archive.org call
     const s0 = cur.slug;
@@ -343,16 +346,24 @@ $('#fetchBtn').onclick = () => busy('Fetching from archive.org', async (p, say) 
 });
 
 // Logo / favicon: save the project first (so the slug exists), then upload.
-for (const [id, kind, prev] of [['#logo', 'logo', '#logoPrev'], ['#favicon', 'favicon', '#favPrev']]) {
+for (const [id, kind, prev] of [['#orglogo', 'org-logo', '#orgPrev'], ['#authorup', 'author', '#authPrev'], ['#favicon', 'favicon', '#favPrev']]) {
   $(id).onchange = (e) => busy('Uploading ' + kind, async (p, say) => {
     const f = e.target.files[0]; if (!f) return;
     if (!form.slug.value) throw new Error('Set the slug first');
     await persist(p);
     const dataUrl = await new Promise((ok) => { const r = new FileReader(); r.onload = () => ok(r.result); r.readAsDataURL(f); });
     await api('POST', `asset/${p.slug}/${kind}`, { dataUrl });
-    if (cur === p) showAsset($(prev), kind); say(`${kind} stored.`, 'ok');
+    if (cur === p) showAsset($(prev), kind); say(`${kind} stored. Click Preview to see it.`, 'ok');
+    e.target.value = '';
   });
 }
+// Reset: remove an uploaded image (back to the default) if it was a mistake.
+document.querySelectorAll('[data-reset]').forEach((btn) => (btn.onclick = () => busy('Removing image', async (p, say) => {
+  if (!projects[p.slug]) return say('Nothing uploaded yet.');
+  await api('DELETE', `asset/${p.slug}/${btn.dataset.reset}`);
+  if (cur === p) btn.closest('label').querySelector('img').removeAttribute('src');
+  say('Image removed. Click Preview to see the change.', 'ok');
+})));
 
 // Open the tab first (a click-initiated window.open is allowed; after an await it is often blocked).
 // Build the IA query from the items this portal already has (never from the whole collection).
