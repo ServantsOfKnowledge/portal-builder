@@ -87,3 +87,6 @@ dialog#viewer::backdrop { background: rgba(0,0,0,.55); }
 .bar.stuck .mini { display: flex; }
 .bar.stuck .pills, .bar.stuck .count { display: none; }
 @media (max-width: 640px) { .aboutbox { flex-direction: column; align-items: center; text-align: center; } h1 { font-size: 1.25rem; } .brand .orgs img, .logo img { height: 32px; } }
+.orgname { color: var(--ink); text-decoration: none; font-weight: 600; font-size: .95rem; border-left: 1px solid var(--line); padding-left: 14px; }
+a.orgname:hover { text-decoration: underline; }
+.aboutbox h2 a { color: inherit; }

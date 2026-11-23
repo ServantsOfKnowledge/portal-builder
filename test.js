@@ -153,3 +153,13 @@ assert.ok(isRoman('Janapada Vichara') && !isRoman('ಸಂಚಯ') && !isRoman(''
   fs2.rmSync(ad, { recursive: true }); fs2.rmSync(w, { recursive: true });
 }
 console.log('ok');
+
+// organisation name + website go with the logo (or show as a text link); author website links the author box
+{
+  const { orgHtml, aboutHtml } = require('./server');
+  assert.match(orgHtml({ orgName: 'Acme Trust', orgUrl: 'https://acme.org' }, true), /<a href="https:\/\/acme\.org\/?"[^>]*><img src="\.\/img\/org-logo\.png" alt="Acme Trust"/);
+  assert.match(orgHtml({ orgName: 'Acme Trust', orgUrl: 'https://acme.org' }, false), /class="orgname" href="https:\/\/acme\.org\/?"[^>]*>Acme Trust</);
+  assert.equal(orgHtml({ orgName: 'Sanchaya' }, false), '');
+  assert.match(aboutHtml({ authorName: 'Kuvempu', authorUrl: 'https://k.org', authorBio: 'Poet.' }, './img/a.jpg'), /<a href="https:\/\/k\.org\/?"[^>]*><img src="\.\/img\/a\.jpg"[\s\S]*<h2><a href="https:\/\/k\.org\/?"[^>]*>Kuvempu/);
+}
+console.log('ok');
