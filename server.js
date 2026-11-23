@@ -432,9 +432,17 @@ function logosHtml(text) {
   return String(text || '').split('\n').map((l) => l.split('|').map((x) => x.trim())).filter(([, , i]) => imgSrc(i))
     .map(([n, u, i]) => { const im = `<img src="${imgSrc(i)}" alt="${esc(n)}" height="40">`; return safeUrl(u) ? `<a href="${safeUrl(u)}" target="_blank" rel="noopener">${im}</a>` : im; }).join('');
 }
-function authorHtml(p) {
-  if (!p.authorBio && !p.authorImage && !p.authorName) return '';
-  return `<section class="author">${imgSrc(p.authorImage) ? `<img src="${imgSrc(p.authorImage)}" alt="${esc(p.authorName)}" width="96" height="96" loading="lazy">` : ''}<div>${p.authorName ? `<h2>${esc(p.authorName)}</h2>` : ''}${String(p.authorBio || '').split(/\n+/).filter(Boolean).map((t) => `<p>${esc(t)}</p>`).join('')}</div></section>`;
+// One About card: the description (or author bio), with the organisation/author picture beside it; long text is clamped with a More toggle.
+function aboutHtml(p, authorImage) {
+  const img = imgSrc(authorImage);
+  const paras = String(p.authorBio || '').split(/\n+/).filter(Boolean);
+  const desc = String(p.description || '').trim();
+  const same = paras.length && paras.join(' ').replace(/\s+/g, ' ') === desc.replace(/\s+/g, ' ');
+  const texts = paras.length ? (same || !desc ? paras : [desc, ...paras]) : (desc ? [desc] : []);
+  if (!texts.length && !img && !p.authorName) return '';
+  const body = texts.map((t) => `<p>${esc(t)}</p>`).join('');
+  const long = texts.join(' ').length > 260;
+  return `<section class="aboutbox${long ? '' : ' open'}">${img ? `<img src="${img}" alt="${esc(p.authorName || '')}" width="84" height="84" loading="lazy">` : ''}<div class="txt">${p.authorName ? `<h2>${esc(p.authorName)}</h2>` : ''}<div class="clip">${body}</div>${long ? '<button type="button" class="morebtn" data-more="Read more" data-less="Show less">Read more</button>' : ''}</div></section>`;
 }
 
 // The portal is published by Sanchaya and Sanchi Foundation with Servants of Knowledge; never the books' publisher.
@@ -466,7 +474,7 @@ function build(p) {
   const v = {
     LANG: esc(p.lang || 'kn'), TITLE: esc(p.title), TAGLINE: esc(p.tagline), DESC: esc(p.description),
     AUTHOR: esc(p.orgName), SITE: site, OGIMG: esc(sorted[0]?.cover || ''), GA: GA(p.gaId) || '',
-    PARTNERS: partnersHtml(p.partners), LOGOS: logosHtml((has('org-logo') && !/img\/org-logo\.png/.test(p.logos || '') ? `${p.collaborator || ''} | | ./img/org-logo.png\n` : '') + (p.logos || '')), AUTHORBOX: authorHtml({ ...p, authorImage: has('author') ? './img/author.png' : p.authorImage }), CREDIT: creditHtml(p),
+    PARTNERS: partnersHtml(p.partners), LOGOS: logosHtml((has('org-logo') && !/img\/org-logo\.png/.test(p.logos || '') ? `${p.collaborator || ''} | | ./img/org-logo.png\n` : '') + (p.logos || '')), ABOUTBOX: aboutHtml(p, has('author') ? './img/author.png' : p.authorImage), CREDIT: creditHtml(p),
     LIST: renderList(sorted.slice(0, PAGE), ui, read) + (sorted.length > PAGE ? '<div id="more" data-pages="' + Math.ceil(sorted.length / PAGE) + '"></div>' : ''), PILLS: pillsHtml(p.books, ui), TOPICS: topicsHtml(p.books, ui), VOLS: volumesHtml(p.books, ui), LANGS: languagesHtml(p.books, ui), COUNT: `${p.books.length} / ${p.books.length} ${esc(ui.ITEMS)}`,
     LDJSON: jsonLd(p, site, sorted), FRAME: String(p.openMode === 'frame'), TJSON: JSON.stringify({ items: ui.ITEMS }).replace(/</g, '\\u003c'),
     SOK: `${fs.existsSync(path.join(TPL, 'img', 'sok-logo.png')) ? '<img src="./img/sok-logo.png" alt="">' : ''}<span>A <a href="https://archive.org/details/ServantsOfKnowledge" target="_blank" rel="noopener">Servants of Knowledge</a> Initiative</span>`,
@@ -862,4 +870,4 @@ if (require.main === module) {
   }
   server.listen(PORT, HOST, () => console.log(`portal-builder → http://${HOST}:${PORT}`));
 }
-module.exports = { migrateLogos, knKey, rkeys, buildLexicon, learnFrom, aiTransliterate, languagesHtml, langName, creditHtml, toScript, isRoman, extractBranding, logosHtml, authorHtml, buildQuery, checkBooks, cleanBook, pickCollection, renderList, refreshBooks, DESIGN_VERSION, fromOldSite, build, merge, toBook, server, authorized };
+module.exports = { migrateLogos, knKey, rkeys, buildLexicon, learnFrom, aiTransliterate, languagesHtml, langName, creditHtml, toScript, isRoman, extractBranding, logosHtml, aboutHtml, buildQuery, checkBooks, cleanBook, pickCollection, renderList, refreshBooks, DESIGN_VERSION, fromOldSite, build, merge, toBook, server, authorized };

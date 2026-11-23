@@ -1,6 +1,6 @@
 // Offline self-check: renders portals and verifies output. Run: node test.js
 const assert = require('assert'), fs = require('fs'), path = require('path');
-const { build, merge, toBook, authorized, toScript, isRoman, extractBranding, logosHtml, authorHtml } = require('./server');
+const { build, merge, toBook, authorized, toScript, isRoman, extractBranding, logosHtml, aboutHtml } = require('./server');
 
 // --- IA mapping and merge
 const doc = { identifier: 'x_1999_v1', title: 'T "q" <b>', creator: ['A B'], year: 1999, description: '<p>hi  there</p>',
@@ -97,7 +97,7 @@ assert(require('./server.js').pickCollection([{ collection: ['JaiGyan', 'Servant
   assert.strictEqual(b.logos, 'Org | https://x.org | ./img/org.png');
   assert.strictEqual(b.authorName, 'Kuvempu'); assert.strictEqual(b.authorImage, './img/a.jpg'); assert.strictEqual(b.authorBio, 'Poet.');
   assert.match(logosHtml(b.logos), /<a href="https:\/\/x\.org"[^>]*><img src=".\/img\/org\.png"/);
-  assert.match(authorHtml(b), /<h2>Kuvempu<\/h2><p>Poet\.<\/p>/);
+  assert.match(aboutHtml(b), /<h2>Kuvempu<\/h2><div class="clip"><p>Poet\.<\/p>/);
   assert.strictEqual(logosHtml('x | | javascript:alert(1)'), '');
 }
 {
