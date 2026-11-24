@@ -90,3 +90,10 @@ dialog#viewer::backdrop { background: rgba(0,0,0,.55); }
 .orgname { color: var(--ink); text-decoration: none; font-weight: 600; font-size: .95rem; border-left: 1px solid var(--line); padding-left: 14px; }
 a.orgname:hover { text-decoration: underline; }
 .aboutbox h2 a { color: inherit; }
+/* wide screens: logos share the title's row instead of sitting above it */
+@media (min-width: 960px) {
+  .top { position: relative; padding-top: 12px; }
+  .brand { position: absolute; left: 20px; right: 20px; top: 12px; pointer-events: none; }
+  .brand a { pointer-events: auto; }
+  h1 { min-height: 40px; display: flex; align-items: center; justify-content: center; max-width: min(820px, calc(100% - 340px)); }
+}

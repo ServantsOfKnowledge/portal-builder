@@ -353,7 +353,7 @@ const qOf = (b) => [b.title, b.titleAlt, b.author, b.publisher, b.tags, b.level,
 // 5 = subject topic filters, each item's own IA description on its card,
 // 6 = volumes as a filter (All shows every item in one list), 7 = extra logos and an author box,
 // 8 = optional transliteration of Roman titles into the book's own script, 9 = language filter when items are in more than one language.
-const DESIGN_VERSION = 10; // bump whenever template/ changes in a way existing portals should pick up
+const DESIGN_VERSION = 11; // bump whenever template/ changes in a way existing portals should pick up
 const PAGE = 30; // cards per page; later pages load as the reader scrolls
 function cardHtml(b, h, ui, read) {
   const vol = volOf(b), iss = issOf(b), id = esc(b.identifier);
